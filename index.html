@@ -1,0 +1,1573 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Sélecteur de cartes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: en-tête + onglets (Arbre / Filtre / Puces / Variantes / Cartes / Lire) en colonne unique max 1180px.
+   Esprit fiche technique: papier froid, vert soldermask, cuivre pour les alertes. */
+:root{
+  --bg:#eef1ee; --surface:#f8faf8; --fg:#16201b; --muted:#5c6a62; --line:#cfd8d2;
+  --accent:#0d6b4d; --accent-soft:#d6ebe2; --copper:#a85a1c; --copper-soft:#f3e2d3;
+  --ok:#0d6b4d; --warn:#a85a1c; --bad:#a63a3a; --bad-soft:#f1dada;
+  --qf:#fdf0bd; --yf:#d3f2dc; --nf:#fbd5da; --lf:#c9e5fb;
+  --font-ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1512; --surface:#161e19; --fg:#e4ece7; --muted:#8fa196; --line:#2a362f;
+  --accent:#4fc89a; --accent-soft:#17382c; --copper:#e39a5b; --copper-soft:#3a2a1c;
+  --ok:#4fc89a; --warn:#e39a5b; --bad:#e08585; --bad-soft:#3a2020;
+  --qf:#4a4220; --yf:#1d4a32; --nf:#52262e; --lf:#1d3b5c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1512; --surface:#161e19; --fg:#e4ece7; --muted:#8fa196; --line:#2a362f;
+  --accent:#4fc89a; --accent-soft:#17382c; --copper:#e39a5b; --copper-soft:#3a2a1c;
+  --ok:#4fc89a; --warn:#e39a5b; --bad:#e08585; --bad-soft:#3a2020;
+  --qf:#4a4220; --yf:#1d4a32; --nf:#52262e; --lf:#1d3b5c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:none;margin-inline:auto}
+h1{font-size:clamp(1.6rem,4vw,2.3rem);line-height:1.1;margin:0 0 6px;letter-spacing:-.02em;text-wrap:balance}
+h2{font-size:1.1rem;margin:0 0 10px;text-wrap:balance}
+p{margin:0 0 10px;max-width:72ch}
+.sub{color:var(--muted)}
+.mono{font-family:var(--font-mono)}
+header{margin-bottom:16px}
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:20px}
+nav.tabs button{font:inherit;font-weight:600;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:10px 12px;cursor:pointer}
+nav.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section.panel[hidden]{display:none}
+.pill{display:inline-block;font-family:var(--font-mono);font-size:.82rem;font-weight:700;padding:2px 9px;border-radius:4px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;border:0;cursor:pointer}
+.pill.cu{background:var(--copper-soft);color:var(--copper)}
+.pill:hover{outline:1px solid currentColor}
+.badge{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.prod{color:var(--ok);border-color:var(--ok)}
+.badge.pre{color:var(--warn);border-color:var(--warn)}
+.badge.leg{color:var(--bad);border-color:var(--bad)}
+.btn{font:inherit;font-size:.85rem;font-weight:600;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.note{background:var(--copper-soft);color:var(--fg);border-left:4px solid var(--copper);padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:14px;max-width:none}
+.note b{color:var(--copper)}
+
+/* arbre schéma (SVG) */
+.treebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.treebar select{font:inherit;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px;min-width:0;max-width:100%}
+.detail{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:8px;min-height:3.6rem;font-size:.92rem}
+.detail .dq{font-weight:700}
+.detail .dh{color:var(--muted);font-size:.9rem}
+.detail .dl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.detail .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.dgwrap{overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;height:min(80vh,820px);cursor:grab;touch-action:pan-x pan-y}
+.dgwrap.drag{cursor:grabbing;user-select:none}
+.dg{display:block}
+.dg text{fill:var(--fg);font-family:var(--font-ui);pointer-events:none}
+.dg .q{fill:var(--qf);stroke:var(--qf);stroke-width:8;stroke-linejoin:round}
+.dg .lf{fill:var(--lf)}
+.dg .yc{fill:var(--yf)}.dg .nc{fill:var(--nf)}
+.dg .edge{stroke:var(--fg);stroke-opacity:.75;fill:none;stroke-width:1.6;stroke-linejoin:round}
+.dg .nd{cursor:pointer}
+.dg .nd:focus{outline:none}
+.dg .nd:focus-visible .q,.dg .nd:focus-visible .lf{stroke:var(--accent);stroke-width:3}
+.dg .nd:hover .q{stroke:var(--accent)}
+.dg .nd:hover .lf{stroke:var(--accent);stroke-width:2}
+.dg.has-hl .nd:not(.hl),.dg.has-hl .eg:not(.hl){opacity:.28}
+.dg .hl .q{stroke:var(--accent);stroke-width:9}
+.dg .hl .lf{stroke:var(--accent);stroke-width:3}
+.dg .eg.hl .edge{stroke:var(--accent);stroke-opacity:1;stroke-width:2.6}
+.dg .nm{font-weight:700;font-family:var(--font-mono)}
+.legend2{font-size:.8rem;color:var(--muted)}
+.legend2 i{display:inline-block;width:12px;height:12px;vertical-align:-1px;margin-right:4px}
+
+/* filtre */
+.finder{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:820px){.finder{grid-template-columns:1fr}}
+.controls{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.controls label{display:flex;gap:8px;align-items:center;font-size:.92rem;cursor:pointer}
+.controls .row{display:flex;flex-direction:column;gap:4px}
+.controls select,.controls input[type=range],.bar select,.bar input[type=search]{width:100%;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px}
+.controls input[type=range]{padding:0;accent-color:var(--accent)}
+.grp{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.count{font-family:var(--font-mono);font-size:.85rem;margin-bottom:10px}
+
+/* tableaux */
+.pick,.bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.bar{gap:10px}
+.bar>*{flex:1 1 180px;min-width:0}
+.chipbtn{font-family:var(--font-mono);font-size:.78rem;font-weight:500;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+.chipbtn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-height:78vh}
+table{border-collapse:separate;border-spacing:0;font-size:.85rem;min-width:100%}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);vertical-align:top;text-align:left;background:var(--surface)}
+.chiptbl th,.chiptbl td{min-width:150px;max-width:220px}
+thead th{position:sticky;top:0;z-index:3;font-family:var(--font-mono);font-size:.85rem}
+th.rowh,td.rowh{position:sticky;left:0;z-index:2;min-width:120px;max-width:120px;font-weight:600;color:var(--muted);font-size:.8rem}
+thead th.rowh{z-index:4}
+tr.gh td{background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;position:sticky;left:0}
+td.dim{color:var(--muted)}
+.chiptbl td.selcol,.chiptbl th.selcol{background:var(--accent-soft)}
+.chiptbl thead th.selcol{background:var(--accent);color:#fff}
+.chiptbl thead th.selcol .sm{color:#fff}
+.chiptbl td.selcol{border-left:2px solid var(--accent);border-right:2px solid var(--accent)}
+.chiptbl thead th.selcol{border-left:2px solid var(--accent);border-right:2px solid var(--accent)}
+.chiptbl tr.selrow td,.chiptbl tr.selrow th.rowh{background:var(--copper-soft)}
+.chiptbl tr.selrow th.rowh{color:var(--copper);box-shadow:inset 3px 0 0 var(--copper)}
+.chiptbl tr.selrow td.selcol{background:var(--accent-soft);background-image:linear-gradient(var(--copper-soft),var(--copper-soft))}
+.chiptbl td.selcell{background:var(--accent)!important;background-image:none!important;color:#fff!important;font-weight:700;outline:2px solid var(--fg);outline-offset:-3px}
+.chiptbl tbody td,.chiptbl tbody th.rowh{cursor:pointer}
+.selinfo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.88rem;margin-bottom:8px;min-height:2rem}
+.selinfo .pill{cursor:default}
+td.yes2{color:var(--ok);font-weight:600}
+td.num{font-family:var(--font-mono)}
+th .sm{display:block;margin-top:3px;font-family:var(--font-ui);font-size:.72rem;font-weight:600;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
+.vtbl td:first-child{font-family:var(--font-mono);font-weight:700;white-space:nowrap}
+.vtbl th,.vtbl td{min-width:90px}
+.vtbl td.note{background:var(--surface);border-left:0;min-width:240px;margin:0;padding:7px 10px;border-radius:0;color:var(--fg);max-width:none}
+.vtbl td.note{border-bottom:1px solid var(--line)}
+.kind{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.kind.puce{color:var(--accent)}.kind.sip{color:var(--copper)}.kind.module{color:var(--fg)}
+.legend{font-size:.82rem;color:var(--muted);margin:10px 0 0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+#wizbox{max-width:640px;margin:8px auto 0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r,10px);padding:24px 28px;box-shadow:var(--shadow)}
+#wizbox h2{margin-top:2px}
+.wiz-opts{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 22px}
+.wiz-opt{font-size:.95rem;padding:10px 16px;min-height:44px}
+.wiz-nav{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.box ul{margin:0;padding-left:1.1em}
+.box li{margin:5px 0}
+.decode{display:flex;flex-wrap:wrap;font-family:var(--font-mono);font-size:1rem;margin:8px 0 12px}
+.decode span{padding:4px 8px;border:1px solid var(--line);margin-left:-1px}
+.src{font-size:.82rem;color:var(--muted)}
+.src a{color:var(--accent)}
+
+.aide{display:flex;justify-content:flex-end;margin:-4px 0 8px}
+.tip{position:relative;display:inline-block}
+.ib{font:inherit;font-weight:700;font-size:.8rem;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:help;padding:0;line-height:1}
+.ib:hover,.ib:focus{border-color:var(--accent);color:var(--accent);outline:none}
+.tipbox{display:none;position:absolute;right:0;top:30px;z-index:30;width:min(440px,86vw);background:var(--surface);color:var(--fg);border:1px solid var(--line);border-left:4px solid var(--copper);border-radius:6px;padding:10px 12px;font-size:.86rem;line-height:1.45;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.tip:hover .tipbox,.tip:focus-within .tipbox{display:block}
+nav.tabs button.esp1{margin-left:18px;border-left:1px solid var(--line)}
+
+.utool{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.utool .count{margin:0}
+.utool select{font:inherit;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.controls details{border-top:1px solid var(--line);padding-top:6px;margin-top:6px}
+.controls details>summary{cursor:pointer;list-style:none}
+.controls details>summary::-webkit-details-marker{display:none}
+.controls details>summary::before{content:"▾ ";color:var(--muted)}
+.controls details:not([open])>summary::before{content:"▸ "}
+.utbl td.pick{width:28px;min-width:28px!important;text-align:center}
+.utbl td.nm button{font:inherit;font-family:var(--font-mono);font-weight:700;background:none;border:0;color:var(--accent);cursor:pointer;text-align:left;padding:0}
+.utbl td.nm button:hover{text-decoration:underline}
+.utbl tr.sel td{background:var(--accent-soft)}
+.cmptbl th.rowh{white-space:nowrap}
+.cmptbl tr.diff td,.cmptbl tr.diff th{background:var(--copper-soft)}
+.drawer{position:fixed;top:0;right:0;height:100vh;width:min(500px,100vw);z-index:60;background:var(--surface);color:var(--fg);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;padding:16px 18px 40px}
+.drawer h2{margin:0 0 4px;font-size:1.25rem}
+.drawer .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 12px;font-size:.88rem;margin:10px 0}
+.drawer .kv dt{color:var(--muted);margin:0}
+.drawer .kv dd{margin:0}
+.drawer .tg{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.drawer .tg span{font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.drawer h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 4px;border-top:1px solid var(--line);padding-top:10px}
+
+
+/* ===== finition : alignement, responsive, mobile ===== */
+:root{--r:10px;--shadow:0 1px 2px rgba(15,25,20,.06),0 4px 14px rgba(15,25,20,.05)}
+body{-webkit-text-size-adjust:100%}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;margin-bottom:14px}
+header h1{margin:0}
+.stat{font-family:var(--font-mono);font-size:.78rem;color:var(--muted);letter-spacing:.02em}
+nav.tabs{position:relative;gap:4px;margin-bottom:18px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{flex:0 0 auto;white-space:nowrap;padding:10px 14px;display:inline-flex;align-items:center;gap:6px;border-radius:8px 8px 0 0}
+nav.tabs button:hover{color:var(--fg);background:var(--accent-soft)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;line-height:1.1;border-radius:8px;white-space:nowrap}
+.ib{display:inline-grid;place-items:center}
+.ftog{display:none}
+/* cases à cocher : case et texte alignés et centrés sur leur ligne */
+.controls label{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:10px;align-items:center;font-size:.92rem;line-height:1.35;padding:4px 0}
+.controls label input[type=checkbox]{display:block;width:16px;height:16px;margin:0;accent-color:var(--accent)}
+.controls .row label{display:block;padding:0}
+.controls{border-radius:var(--r);box-shadow:var(--shadow)}
+.controls select,.controls input[type=search],.bar select,.bar input[type=search],.utool select{min-height:36px;border-radius:8px}
+.controls details{border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
+.controls details>summary.grp{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px;padding:2px 0}
+.controls details>summary::before{content:none!important}
+.controls details>summary::after{content:"▾";color:var(--muted);font-size:.8rem}
+.controls details:not([open])>summary::after{content:"▸"}
+.controls details[open]>*:not(summary){margin-bottom:2px}
+@media (min-width:901px){
+  #uform{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;scrollbar-width:thin}
+}
+.utool{gap:8px 10px}
+.utool .count{white-space:nowrap}
+/* tableau explorer */
+.utbl td{vertical-align:middle}
+.utbl td.nm{vertical-align:top}
+.utbl td.pick{display:table-cell;text-align:center;vertical-align:middle;margin:0}
+.utbl td.pick input{display:block;width:16px;height:16px;margin:0 auto;accent-color:var(--accent)}
+.utbl tbody tr:hover td{background:var(--accent-soft)}
+.utbl tr.sel td{background:var(--accent-soft)}
+.utbl td.nm button{line-height:1.3}
+.tablewrap{border-radius:var(--r);box-shadow:var(--shadow)}
+.drawer{border-radius:var(--r) 0 0 var(--r)}
+.scrim{position:fixed;inset:0;background:rgba(10,18,14,.4);z-index:55}
+@media (max-width:900px){
+  .finder{grid-template-columns:minmax(0,1fr)}
+  .ftog{display:inline-flex}
+  #uform{display:none}
+  #uform.open{display:flex}
+  .utool .count{flex:1 1 100%}
+  .utool select{flex:1 1 140px}
+  .utool .aide{margin-left:auto}
+}
+@media (max-width:700px){
+  body{font-size:14.5px}
+  header{margin-bottom:10px}
+  .tablewrap.cardlist{border:0;background:none;box-shadow:none;max-height:none;overflow:visible}
+  .utbl,.utbl tbody{display:block}
+  .utbl thead{display:none}
+  .utbl tr{display:grid;grid-template-columns:28px minmax(0,1fr);gap:2px 8px;border:1px solid var(--line);border-radius:12px;margin:0 0 10px;padding:10px 12px;background:var(--surface);box-shadow:var(--shadow)}
+  .utbl td{display:flex;gap:10px;border:0;padding:2px 0;background:transparent!important;min-width:0!important;grid-column:2;align-items:baseline}
+  .utbl td::before{content:attr(data-l);flex:0 0 78px;color:var(--muted);font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+  .utbl td.pick{grid-column:1;grid-row:1;padding:2px 0;justify-content:center;align-items:center}
+  .utbl td.pick::before,.utbl td.nm::before{content:none}
+  .utbl td.nm{grid-column:2;grid-row:1;padding-bottom:6px;display:block}
+  .utbl td.hm{display:none}
+  .utbl td.nm button{font-size:.98rem}
+  .drawer{width:100vw;border-radius:0}
+  .drawer .kv{grid-template-columns:104px minmax(0,1fr)}
+  .cmptbl th,.cmptbl td{min-width:160px!important}
+  .cols{grid-template-columns:minmax(0,1fr)}
+  #wizbox{padding:18px 16px;margin-top:4px}
+  .wiz-opt{flex:1 1 100%}
+  .wiz-nav{flex-direction:column;align-items:stretch}
+  .wiz-nav button{width:100%}
+  .tipbox{right:-8px}
+}
+@media (max-width:420px){
+  nav.tabs button{padding:9px 11px;font-size:.9rem}
+  .bar>*{flex-basis:100%}
+}
+.utbl th:first-child,.utbl td.pick{width:40px;min-width:40px!important;max-width:40px;padding-inline:0}
+.utbl td.pick{border-right:0}
+.controls .row>label:not(.grp){font-size:.78rem;font-weight:600;color:var(--muted)}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Quelle carte choisir ?</h1>
+  <span class="stat" id="stat"></span>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button role="tab" id="t-wiz" aria-selected="true" aria-controls="p-wiz">Aide au choix</button>
+  <button role="tab" id="t-u" aria-selected="false" aria-controls="p-u">Explorer</button>
+  <button role="tab" id="t-cmp" aria-selected="false" aria-controls="p-cmp">Comparer <span id="cmpn"></span></button>
+  <button role="tab" id="t-chips" aria-selected="false" aria-controls="p-chips">Puces</button>
+  <button role="tab" id="t-tree" aria-selected="false" aria-controls="p-tree">Arbre de décision ESP32</button>
+  <button role="tab" id="t-vars" aria-selected="false" aria-controls="p-vars">Modules ESP</button>
+  <button role="tab" id="t-read" aria-selected="false" aria-controls="p-read">Décoder une référence</button>
+  <button role="tab" id="t-miss" aria-selected="false" aria-controls="p-miss">À ne pas rater</button>
+</nav>
+
+<!-- AIDE AU CHOIX (assistant par questions) -->
+<section class="panel" id="p-wiz" role="tabpanel" aria-labelledby="t-wiz">
+  <div id="wizbox"></div>
+</section>
+
+<!-- ARBRE SCHEMA -->
+<section class="panel" id="p-tree" role="tabpanel" aria-labelledby="t-tree" hidden>
+  <div class="aide"><span class="tip"><button class="ib" type="button" aria-label="Aide">?</button><span class="tipbox" role="tooltip">Pour répondre dans le désordre, utilisez « Mes besoins ». Lecture de haut en bas : chaque losange est une question, OUI à gauche et NON à droite, jusqu'à un rectangle bleu qui donne la puce. Cliquez un losange pour lire la question en entier, une puce pour voir son chemin. Faites glisser pour vous déplacer.</span></span></div>
+  <div class="treebar">
+    <label for="goto" class="grp" style="margin:0">Aller à une puce</label>
+    <select id="goto"></select>
+    <button class="btn" id="zout" type="button" aria-label="Réduire">−</button>
+    <button class="btn" id="zin" type="button" aria-label="Agrandir">+</button>
+    <button class="btn" id="zfit" type="button">Tout voir</button>
+    <button class="btn" id="clearhl" type="button">Effacer le chemin</button>
+    <span class="legend2"><i style="background:var(--qf)"></i>question <i style="background:var(--lf);margin-left:8px"></i>résultat</span>
+  </div>
+  <div class="detail" id="detail"><div class="dh">Cliquez un losange ou une puce pour afficher le détail ici.</div></div>
+  <div class="dgwrap" id="dgwrap"><svg class="dg" id="dg" role="group" aria-label="Arbre de décision"></svg></div>
+</section>
+
+
+<!-- EXPLORER -->
+<section class="panel" id="p-u" role="tabpanel" aria-labelledby="t-u" hidden>
+  <div class="finder">
+    <form class="controls" id="uform" onsubmit="return false">
+      <div class="row"><label for="u-q" class="grp">Chercher</label>
+        <input type="search" id="u-q" placeholder="Nom, puce, marque : Pico, XIAO, STM32, Jetson…" style="width:100%;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px"></div>
+      <details open><summary class="grp">Famille</summary>
+        <div class="row"><select id="u-cat"></select></div>
+        <div class="row"><label for="u-mk">Fabricant</label><select id="u-mk"></select></div>
+        <div class="row"><label for="u-type">Type</label>
+          <select id="u-type"><option value="">Tous</option><option value="mcu">Micro-contrôleur (sans système)</option><option value="linux">Mini-ordinateur Linux</option><option value="ai">IA / vision</option><option value="fpga">FPGA</option></select></div>
+        <div class="row"><label for="u-form">Format</label>
+          <select id="u-form"><option value="">Tous</option><option value="mini">Mini (Nano, XIAO, D1 mini…)</option><option value="std">Standard (Uno, DevKit, Feather)</option><option value="large">Grande (kit, écran, Mega)</option><option value="sbc">Mini-PC (format carte de crédit)</option><option value="mod">Module / carte porteuse</option><option value="dongle">Dongle / clé USB</option><option value="din">Rail DIN industriel</option><option value="prop">Autre</option></select></div>
+      </details>
+      <details open><summary class="grp">Broches et tension</summary>
+        <div class="row"><label for="u-gpio">GPIO utilisables minimum : <b class="mono" id="v-ugpio">0</b></label><input type="range" id="u-gpio" min="0" max="100" step="2" value="0"></div>
+        <div class="row"><label for="u-volt">Tension des broches</label>
+          <select id="u-volt"><option value="">Indifférent</option><option value="3.3">3,3 V</option><option value="5">5 V</option><option value="1.8">1,8 V</option><option value="24">24 V (industriel)</option></select></div>
+        <label><input type="checkbox" data-t="vt5"> Broches 5 V tolérantes ou 5 V natif</label>
+        <label><input type="checkbox" data-t="can"> CAN / CAN-FD</label>
+        <label><input type="checkbox" data-t="dac"> DAC (vraie sortie analogique)</label>
+        <label><input type="checkbox" data-t="audio"> Audio (I²S, micro, haut-parleur)</label>
+        <label><input type="checkbox" data-t="camera"> Caméra (intégrée ou port CSI)</label>
+      </details>
+      <details open><summary class="grp">Radio</summary>
+        <label><input type="checkbox" data-t="wifi"> Wi-Fi</label>
+        <label><input type="checkbox" data-t="wifi5"> Wi-Fi 5 GHz</label>
+        <label><input type="checkbox" data-t="ble"> Bluetooth LE</label>
+        <label><input type="checkbox" data-t="thread"> Thread / Zigbee / Matter</label>
+        <label><input type="checkbox" data-t="lora"> LoRa / sub-GHz</label>
+        <label><input type="checkbox" data-t="cell"> Cellulaire (4G / LTE-M)</label>
+        <label><input type="checkbox" data-t="eth"> Ethernet</label>
+      </details>
+      <details open><summary class="grp">USB et programmation</summary>
+        <label><input type="checkbox" data-t="usbn"> USB natif (clavier, souris, clé…)</label>
+        <label><input type="checkbox" data-t="usbc"> Port USB-C</label>
+        <label><input type="checkbox" data-t="debug"> Débogueur intégré</label>
+        <label><input type="checkbox" data-t="arduino"> Arduino IDE</label>
+        <label><input type="checkbox" data-t="mpy"> MicroPython</label>
+        <label><input type="checkbox" data-t="cpy"> CircuitPython</label>
+        <label><input type="checkbox" data-t="zephyr"> Zephyr</label>
+      </details>
+      <details open><summary class="grp">Processeur et mémoire</summary>
+        <label><input type="checkbox" data-t="rv"> RISC-V</label>
+        <label><input type="checkbox" data-t="npu"> NPU / accélérateur IA</label>
+        <label><input type="checkbox" data-t="psram"> Mémoire externe (PSRAM / SDRAM)</label>
+        <div class="row"><label for="u-ram">RAM minimum</label>
+          <select id="u-ram"><option value="0">Indifférent</option><option value="262144">256 KB</option><option value="524288">512 KB</option><option value="4194304">4 MB</option><option value="268435456">256 MB</option><option value="1073741824">1 GB</option><option value="4294967296">4 GB</option></select></div>
+      </details>
+      <details open><summary class="grp">Sur la carte</summary>
+        <label><input type="checkbox" data-t="ecran"> Écran</label>
+        <label><input type="checkbox" data-t="batterie"> Charge de batterie LiPo</label>
+        <label><input type="checkbox" data-t="sd"> Lecteur microSD</label>
+        <label><input type="checkbox" id="u-noacc" checked> Masquer sondes, dongles radio et accessoires</label>
+      </details>
+      <button class="btn" type="button" id="u-reset">Réinitialiser</button>
+    </form>
+    <div style="min-width:0">
+      <div class="utool">
+        <div class="count" id="ucount"></div>
+        <select id="u-sort" aria-label="Trier"><option value="n">Trier : nom</option><option value="gpio">Trier : GPIO ↓</option><option value="ram">Trier : RAM ↓</option><option value="cat">Trier : famille</option></select>
+        <button class="btn ftog" type="button" id="u-ftoggle" aria-expanded="false" aria-controls="uform">Filtres</button>
+        <button class="btn" type="button" id="u-cmpbtn">Comparer (0)</button>
+        <button class="btn" type="button" id="u-cmpclr">Vider</button>
+        <span style="flex:1"></span>
+        <div class="aide" style="margin:0"><span class="tip"><button class="ib" type="button" aria-label="Aide">?</button><span class="tipbox" role="tooltip">Cliquez le nom d'une carte pour sa fiche complète. Cochez les cases de gauche pour comparer jusqu'à 5 cartes. Pour les cartes non-ESP, les filtres sont déduits des fiches (radio, USB, logiciel) : un texte flou peut donner un faux négatif. Les valeurs de GPIO sont celles utilisables sur la carte ou la puce. En cas de doute, vérifiez la fiche du vendeur.</span></span></div>
+      </div>
+      <div id="usum" class="src" style="margin:0 0 10px"></div>
+      <div class="tablewrap cardlist" style="max-height:80vh"><table id="utbl" class="vtbl utbl"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARER -->
+<section class="panel" id="p-cmp" role="tabpanel" aria-labelledby="t-cmp" hidden>
+  <div class="utool"><div class="count" id="cmpcount"></div><button class="btn" type="button" id="cmp-back">Retour à l'Explorer</button><button class="btn" type="button" id="cmp-clr">Vider</button></div>
+  <div class="tablewrap" style="max-height:82vh"><table id="cmptbl" class="vtbl cmptbl"></table></div>
+</section>
+
+<div id="scrim" class="scrim" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-label="Fiche de la carte"></aside>
+
+<!-- PUCES -->
+<section class="panel" id="p-chips" role="tabpanel" aria-labelledby="t-chips" hidden>
+  <div class="box" style="margin-bottom:14px">
+    <h2>Que veut dire « Série » ?</h2>
+    <p>C'est la lettre dans le nom de la puce. Elle indique le rôle voulu par Espressif, pas une qualité.</p>
+    <ul>
+      <li><b>ESP8266, ESP32</b> : les deux générations historiques.</li>
+      <li><b>S</b> : hautes performances (S2, S3, S31).</li>
+      <li><b>C</b> : RISC-V économique avec Wi-Fi (C2, C3, C5, C6, C61).</li>
+      <li><b>H</b> : Bluetooth LE et 802.15.4, sans Wi-Fi (H2, H4, H21).</li>
+      <li><b>P</b> : processeur puissant sans radio (P4).</li>
+      <li><b>E</b> : coprocesseur radio qui s'ajoute à un autre processeur (E22).</li>
+    </ul>
+  </div>
+  <div class="aide"><span class="tip"><button class="ib" type="button" aria-label="Aide USB">?</button><span class="tipbox" role="tooltip"><b>USB :</b> le connecteur de la carte (micro-USB ou USB-C) et l'USB de la puce sont deux choses séparées. Sur ESP8266, ESP32 et C2, la puce n'a pas d'USB : la carte soude un petit pont USB-UART (CH340, CP2102, CH9102) entre le connecteur et la puce, donc le câble marche quand même. Sur C3, C5, C6, C61, H2, S2, S3, la puce parle USB toute seule. Seuls S2 et S3 (et S31, P4) peuvent faire clavier, souris ou clé USB. « — » : non applicable ou non publié. Les GPIO sont ceux de la puce, pas ceux exposés par une carte.</span></span></div>
+  <div class="selinfo" id="selinfo"></div>
+  <div class="pick" id="pick" aria-label="Puces affichées"></div>
+  <div class="tablewrap"><table id="tbl" class="chiptbl"></table></div>
+  <h2 style="margin-top:30px">Autres puces et SoC (toutes marques)</h2>
+  <div class="bar"><select id="c2-type" aria-label="Type"></select><input type="search" id="c2-q" placeholder="Chercher : RP2040, STM32, nRF, RK3588…" aria-label="Recherche"></div>
+  <div class="count" id="c2count"></div>
+  <div class="tablewrap"><table id="c2tbl" class="vtbl"></table></div>
+</section>
+
+<!-- VARIANTES -->
+<section class="panel" id="p-vars" role="tabpanel" aria-labelledby="t-vars" hidden>
+  <div class="aide"><span class="tip"><button class="ib" type="button" aria-label="Aide">?</button><span class="tipbox" role="tooltip">Une même puce se vend avec plusieurs mémoires, boîtiers et antennes. Chaque ligne est une référence que l'on trouve dans les annonces : puce nue, SiP (puce + flash dans un boîtier) ou module (puce + flash + antenne sur un petit circuit soudable).<br><br>Lecture des suffixes : N = flash de température normale, H = flash haute température, R = PSRAM, F = flash dans le boîtier de la puce, V = 1,8 V, U = connecteur d'antenne externe, I = antenne externe (anciens WROVER).</span></span></div>
+  <div class="bar">
+    <select id="v-chip" aria-label="Puce"></select>
+    <select id="v-kind" aria-label="Type">
+      <option value="">Tous les types</option><option value="puce">Puces nues</option><option value="sip">SiP</option><option value="module">Modules</option>
+    </select>
+    <input type="search" id="v-q" placeholder="Chercher : N16R8, WROOM, ESP-12F…" aria-label="Recherche">
+  </div>
+  <div class="count" id="vcount"></div>
+  <div class="tablewrap"><table id="vtbl" class="vtbl"></table></div>
+</section>
+
+<!-- A NE PAS RATER -->
+<section class="panel" id="p-miss" role="tabpanel" aria-labelledby="t-miss" hidden>
+  <div class="cols">
+    <div class="box"><h2>1. Familles de cartes absentes de votre liste</h2><ul>
+      <li><b>RP2040 / RP2350 (Pico)</b> : documentation excellente, 8 machines d'état PIO pour inventer un protocole, MicroPython natif. Pas de radio sauf versions W.</li>
+      <li><b>STM32 (Nucleo, Black Pill)</b> : le standard industriel ; débogueur ST-LINK sur les Nucleo, beaucoup de périphériques (CAN, ADC 12–16 bits, DAC).</li>
+      <li><b>Nordic nRF52840 / nRF54</b> : meilleur choix BLE basse conso, Thread, Zigbee ; micro:bit V2 et XIAO nRF52840 en dérivent.</li>
+      <li><b>Teensy 4.x</b> : 600 MHz, audio, USB haute vitesse ; la plus rapide des cartes « Arduino ».</li>
+      <li><b>SBC Linux</b> (Raspberry Pi, Orange Pi, Radxa, Odroid, BeagleBone) : un vrai ordinateur ; pas de temps réel strict, démarrage en secondes, carte SD fragile.</li>
+      <li><b>Cartes IA</b> : Jetson (GPU), Coral et Hailo (accélérateurs), OpenMV et MaixCAM (vision), STM32N6 (NPU sur micro-contrôleur).</li>
+      <li><b>FPGA</b> (Tang Nano, iCEBreaker, Arty) : pour des timings à la nanoseconde ou des protocoles exotiques ; courbe d'apprentissage forte.</li>
+      <li><b>RISC-V</b> : CH32V (pas cher), ESP32-C/P, Milk-V Duo, VisionFive 2, Lichee.</li>
+    </ul></div>
+    <div class="box"><h2>2. Radio : au-delà du Wi-Fi et du Bluetooth</h2><ul>
+      <li><b>LoRa / Meshtastic</b> : plusieurs kilomètres à faible débit (Heltec V3, T-Beam, RAK). Vérifiez la bande légale de votre région (868 MHz en Europe, 915 MHz en Amérique).</li>
+      <li><b>Thread / Matter / Zigbee</b> : ESP32-C6 et H2, nRF52840, Silicon Labs MG24. Sur ESP32 il faut une puce 802.15.4 (C6, H2) ou un dongle.</li>
+      <li><b>Wi-Fi 5 GHz</b> : seulement ESP32-C5 chez Espressif ; sinon BW16 (Realtek) ou Raspberry Pi. Les ESP32 classiques sont 2,4 GHz uniquement.</li>
+      <li><b>Cellulaire</b> : nRF9160 / nRF9151, modules SIMCom (LILYGO T-SIM), Particle. Prévoyez aussi l'abonnement.</li>
+      <li><b>Sub-GHz propriétaire</b> : CC1101 (ajouté sur Flipper Zero), CC1352 (TI).</li>
+      <li><b>Radio logicielle (SDR)</b> : RTL-SDR, HackRF, Adalm-Pluto. Ce ne sont pas des cartes de développement mais complètent beaucoup de projets radio.</li>
+    </ul></div>
+    <div class="box"><h2>3. Pièges techniques fréquents</h2><ul>
+      <li><b>Tension logique</b> : ESP, RP2040, STM32, Nordic = 3,3 V (non tolérant 5 V sauf broches précisées). Arduino Uno/Mega/Nano = 5 V. Utilisez un convertisseur de niveau.</li>
+      <li><b>ADC ESP32</b> : l'ADC2 est inutilisable quand le Wi-Fi tourne sur l'ESP32 d'origine ; l'ESP8266 n'a qu'une entrée analogique 10 bits (0–1 V). RP2040 : ADC 12 bits mais bruité.</li>
+      <li><b>Broches de démarrage (strapping)</b> : certains GPIO ne doivent pas être tirés à un niveau au boot (ESP32 : GPIO 0, 2, 12, 15 ; GPIO 6–11 = flash, interdits).</li>
+      <li><b>Alimentation</b> : un ESP en Wi-Fi consomme des pics de plusieurs centaines de mA ; un régulateur faible ou un câble USB long provoque des redémarrages (brownout).</li>
+      <li><b>Deep sleep réel</b> : la LED, le pont USB-série et le régulateur de la carte peuvent consommer plus que la puce. Pour le basse conso, regardez le courant de la carte entière, pas celui de la puce.</li>
+      <li><b>USB-C</b> : certaines cartes bon marché n'ont pas les résistances CC et ne s'alimentent qu'avec un câble USB-A vers USB-C.</li>
+      <li><b>Contrefaçons</b> : Blue Pill (clones CKS/GD32 vendus sous « STM32 »), Arduino Nano à CH340 ; vérifiez le marquage de la puce.</li>
+      <li><b>Pilotes USB</b> : CH340, CP2102 et CH9102 demandent parfois un pilote ; les cartes à USB natif apparaissent comme port série sans pilote.</li>
+    </ul></div>
+    <div class="box"><h2>4. Logiciel et écosystème</h2><ul>
+      <li><b>Langage</b> : Arduino C++ (tout), MicroPython (ESP32, RP2040, STM32, nRF), CircuitPython (Adafruit, RP2040, certains ESP32-S2/S3), ESP-IDF (natif Espressif), Zephyr RTOS (portable), Rust embarqué (embassy, esp-hal), TinyGo.</li>
+      <li><b>Domotique sans code</b> : ESPHome et Tasmota (ESP8266/ESP32), Home Assistant. À considérer avant de programmer soi-même.</li>
+      <li><b>Débogage</b> : une sonde SWD (Raspberry Pi Debug Probe, ST-LINK, J-Link, CMSIS-DAP) change la vie sur STM32/RP2040/nRF. Les ESP32-C3/C6/S3 ont un JTAG intégré via USB.</li>
+      <li><b>Support long terme</b> : un ESP8266 ou un Arduino Uno R3 est toujours disponible, mais une carte tierce peut disparaître. Pour un produit, regardez le statut « NRND / EOL » du fabricant.</li>
+      <li><b>Sécurité</b> : secure boot et chiffrement flash existent sur ESP32 récents, STM32 TrustZone, RP2350. Utile pour un produit connecté (réglementation européenne sur la cybersécurité, CRA).</li>
+    </ul></div>
+    <div class="box"><h2>5. Catégories à connaître</h2><ul>
+      <li><b>Tout-en-un avec écran</b> : M5Stack (Core2, Cardputer, Tab5), LILYGO T-Display / T-Deck, Wio Terminal, Waveshare.</li>
+      <li><b>Pentest / radio portable</b> : Flipper Zero, Cardputer + Bruce, Proxmark3, HackRF + PortaPack. À utiliser sur vos propres équipements ou avec autorisation.</li>
+      <li><b>Claviers</b> : Pro Micro, RP2040 (KMK/QMK), nice!nano (ZMK, BLE).</li>
+      <li><b>Imprimantes 3D</b> : BIGTREETECH SKR / Octopus ; firmware Klipper ou Marlin.</li>
+      <li><b>Automates industriels</b> : Arduino Opta, Controllino, Revolution Pi ; entrées 24 V, rail DIN, RS-485.</li>
+      <li><b>E-ink / dashboards</b> : Inkplate, TRMNL, LILYGO T5 ; très basse conso, rafraîchissement lent.</li>
+      <li><b>Modules interchangeables</b> : SparkFun MicroMod, Mikroe Click, Seeed Grove, STEMMA QT, Qwiic : évitent la soudure.</li>
+    </ul></div>
+    <div class="box"><h2>6. Questions à vous poser avant de choisir</h2><ul>
+      <li>Linux complet (navigateur, Docker, caméra) ou micro-contrôleur (temps réel, 10 µA en veille) ?</li>
+      <li>Alimentation : secteur, USB, batterie LiPo, solaire ? Quelle autonomie visée ?</li>
+      <li>Distance et débit radio : quelques mètres (BLE), la maison (Wi-Fi), des kilomètres (LoRa), partout (4G) ?</li>
+      <li>Nombre de broches et types : analogique précis, PWM, CAN, I²S (audio), caméra, écran ?</li>
+      <li>Tension logique de vos capteurs (3,3 V ou 5 V) ?</li>
+      <li>Langage et outils que vous connaissez déjà ?</li>
+      <li>Format physique : breadboard (Nano, SuperMini), boîtier existant (Pi, Uno), très petit (XIAO, QT Py) ?</li>
+      <li>Besoin de certification radio (CE / FCC) si vous vendez : préférez un module précertifié plutôt qu'une puce nue.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- LECTURE -->
+<section class="panel" id="p-read" role="tabpanel" aria-labelledby="t-read" hidden>
+  <div class="cols">
+    <div class="box">
+      <h2>Décoder « ESP32-S3-WROOM-1-N16R8 »</h2>
+      <div class="decode"><span>ESP32-S3</span><span>WROOM-1</span><span>N16</span><span>R8</span></div>
+      <ul>
+        <li><b>ESP32-S3</b> : la puce.</li>
+        <li><b>WROOM-1</b> : le module (puce + flash + antenne PCB). Variantes : WROOM = flash seule ou avec PSRAM, WROVER = ancien format avec PSRAM (ESP32, S2), MINI = plus petit, SOLO = un seul cœur.</li>
+        <li><b>N16</b> : 16 MB de flash. <b>R8</b> : 8 MB de PSRAM (octale sur S3). Ce n'est pas une nouvelle famille.</li>
+        <li>« SuperMini », « XIAO », « DevKit » : le format de la carte, choisi par le vendeur.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h2>Vérifications avant d'acheter</h2>
+      <ul>
+        <li><b>GPIO annoncés ≠ utilisables.</b> Une flash ou PSRAM octale sur S3 (R8, N8…) occupe plusieurs broches (autour de GPIO 33 à 37 selon le module).</li>
+        <li><b>Antenne :</b> PCB, céramique ou connecteur U.FL. Elle compte plus que la puce pour la portée.</li>
+        <li><b>Conso réelle :</b> régulateur, LED et pont USB dominent souvent le deep-sleep du SoC.</li>
+        <li><b>Boot et flash :</b> avec un pont UART, un bouton BOOT est parfois nécessaire. En USB natif, c'est le câble qui gère.</li>
+        <li><b>USB-C ne veut pas dire « pas d'USB natif ».</b> C'est indépendant du connecteur : la colonne USB de l'onglet Explorer précise si le port est câblé en direct sur la puce ou via un pont.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h2>Points de vigilance</h2>
+      <ul>
+        <li>Les puces récentes (C5, C61, H4, H21, P4) évoluent encore : vérifiez la fiche Espressif à jour avant un achat en volume.</li>
+        <li>Cartes tierces (SuperMini, XIAO, clones N16R8…) : le composant USB-UART (CH340, CP2102, CH9102…) peut varier d'un lot à l'autre.</li>
+        <li>CAN FD sur le P4 : non confirmé par Espressif à ce jour.</li>
+        <li>L'<b>E22</b> est un coprocesseur radio, pas une puce autonome : il se branche à un autre processeur (PCIe, SDIO, USB).</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h2>Sources</h2>
+      <p class="src">Fiches Espressif : <a href="https://documentation.espressif.com/esp32-c3_datasheet_en.html">C3</a>, <a href="https://documentation.espressif.com/esp32-c5_datasheet_en.html">C5</a>, <a href="https://documentation.espressif.com/esp32-c6_datasheet_en.html">C6</a>, <a href="https://documentation.espressif.com/esp32-c61_datasheet_en.html">C61</a>, <a href="https://documentation.espressif.com/esp8684_datasheet_en.html">C2</a>, <a href="https://documentation.espressif.com/esp32-h2_datasheet_en.html">H2</a>, <a href="https://documentation.espressif.com/esp32-s2_datasheet_en.html">S2</a>, <a href="https://documentation.espressif.com/esp32-s3_datasheet_en.html">S3</a>, <a href="https://documentation.espressif.com/esp32-s31_datasheet_en.html">S31</a>, <a href="https://documentation.espressif.com/esp32-p4_datasheet_en.html">P4</a>, <a href="https://documentation.espressif.com/esp32_datasheet_en.html">ESP32</a>, <a href="https://www.espressif.com/en/products/socs/esp32-h4">H4</a>, <a href="https://www.espressif.com/en/news/ESP32_H21">H21</a>, <a href="https://www.espressif.com/en/products/socs/esp32-e22">E22</a>. Modules : <a href="https://www.espressif.com/en/products/modules">espressif.com/modules</a>, <a href="https://www.espressif.com/en/products/modules/esp32">modules ESP32</a>, <a href="https://developer.espressif.com/blog/2025/03/espressif-part-numbers-explained/">noms de référence</a>. ESP8266 : <a href="https://www.elcircuits.com/?p=1114">elcircuits</a>, <a href="https://en.wikipedia.org/wiki/ESP8266">Wikipedia</a>. Cartes : <a href="https://www.espboards.dev/blog/usb-c-esp32-development-boards/">espboards.dev</a>, <a href="https://esp32.co.uk/?p=1743">esp32.co.uk</a>.</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+var CHIPS=[
+{id:'esp8266',n:'ESP8266',fam:'Legacy',st:'prod',badgeT:'Toujours vendu',stT:'Toujours vendu et utilisé (Espressif conseille le C2 pour les nouveaux produits)',cpu:'Tensilica L106 · 1 cœur',mhz:'80 / 160 MHz',sram:160,sramT:'~160 KB (≈80 KB utilisables)',rom:'—',flash:'Externe (ESP8285 : 1 MB intégré)',psram:'Non',psOk:0,gpio:11,gpioT:'17 sur la puce, ~11 libres sur modules',wifi:4,wifiT:'Wi-Fi 4 (b/g/n)',b5:0,b6:0,bands:'2,4 GHz',ble:'Aucun',bleOn:0,cl:0,clT:'Non',z:0,zT:'Non',usb:'Aucun dans la puce : la carte ajoute un pont USB-UART (CH340, CP2102…)',direct:0,otg:0,eth:0,can:0,cam:0,adc:'1 voie · 10 bits',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'2',spi:'2 (1 libre)',i2c:'Logiciel',i2s:'1',sec:'Limitée',sleep:'—',temp:'-40…125 °C',pkg:'QFN32 5×5',use:'Projets simples à petit budget : Wemos D1 mini, NodeMCU, ESP-01, ESP-12F. Très large écosystème (Arduino, ESPHome, Tasmota, MicroPython).'},
+{id:'esp8285',n:'ESP8285',fam:'Legacy',st:'prod',badgeT:'Toujours vendu',stT:'Toujours vendu (variante de l\'ESP8266)',cpu:'Tensilica L106 · 1 cœur',mhz:'80 / 160 MHz',sram:160,sramT:'~160 KB (≈80 KB utilisables)',rom:'—',flash:'1 MB intégré',psram:'Non',psOk:0,gpio:10,gpioT:'17 sur la puce, ~10 libres (2 pris par la flash)',wifi:4,wifiT:'Wi-Fi 4 (b/g/n)',b5:0,b6:0,bands:'2,4 GHz',ble:'Aucun',bleOn:0,cl:0,clT:'Non',z:0,zT:'Non',usb:'Aucun dans la puce : la carte ajoute un pont USB-UART (CH340, CP2102…)',direct:0,otg:0,eth:0,can:0,cam:0,adc:'1 voie · 10 bits',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'2',spi:'2 (1 libre)',i2c:'Logiciel',i2s:'1',sec:'Limitée',sleep:'—',temp:'-40…125 °C',pkg:'QFN32 5×5',use:'ESP8266 avec 1 MB de flash dans le boîtier. Projets simples à petit budget : Wemos D1 mini, NodeMCU, ESP-01, ESP-12F. Très large écosystème (Arduino, ESPHome, Tasmota, MicroPython).'},
+{id:'esp32',n:'ESP32',fam:'ESP32',st:'prod',stT:'Production (ancienne gen.)',cpu:'Xtensa LX6 · 2 cœurs',mhz:'240 MHz',sram:520,sramT:'520 KB',rom:'448 KB',flash:'Externe QSPI (U4WDH : 4 MB intégré)',psram:'Externe jusqu\'à 8 MB (WROVER)',psOk:1,gpio:34,gpioT:'34',wifi:4,wifiT:'Wi-Fi 4 · 150 Mbps',b5:0,b6:0,bands:'2,4 GHz',ble:'Oui · 4.2',bleOn:1,cl:1,clT:'Oui (BR/EDR)',z:0,zT:'Non',usb:'Aucun dans la puce : la carte ajoute un pont USB-UART (CH340, CP2102, CH9102…)',direct:0,otg:0,eth:1,can:1,cam:0,adc:'18 voies · 12 bits',dac:'2 × 8 bits',touch:'10',dacOn:1,touchOn:1,uart:'3',spi:'4',i2c:'2',i2s:'2',sec:'Secure boot, chiffrement flash, AES/SHA/RSA',sleep:'Deep-sleep ~10 µA',temp:'-40…125 °C (certaines versions 85)',pkg:'QFN48 5×5',use:'Bluetooth Classic, Ethernet RMII, énorme base de code.'},
+{id:'s2',n:'ESP32-S2',fam:'S',st:'prod',stT:'Production',cpu:'Xtensa LX7 · 1 cœur',mhz:'240 MHz',sram:320,sramT:'320 KB + 16 KB RTC',rom:'128 KB',flash:'Externe (FH4 : 4 MB intégré)',psram:'2 MB intégré (R2) ou externe',psOk:1,gpio:43,gpioT:'43',wifi:4,wifiT:'Wi-Fi 4 · 150 Mbps',b5:0,b6:0,bands:'2,4 GHz',ble:'Aucun',bleOn:0,cl:0,clT:'Non',z:0,zT:'Non',usb:'OTG Full-Speed (clavier, clé USB, flash direct par le câble)',direct:1,otg:1,eth:0,can:1,cam:1,adc:'20 voies · 12 bits',dac:'2 × 8 bits',touch:'14',dacOn:1,touchOn:1,uart:'2',spi:'4',i2c:'2',i2s:'1',sec:'Secure boot, chiffrement flash, AES/SHA/RSA',sleep:'—',temp:'-40…105 °C (85 avec PSRAM)',pkg:'QFN56 7×7',use:'USB natif et beaucoup de GPIO sans besoin de BLE.'},
+{id:'s3',n:'ESP32-S3',fam:'S',st:'prod',stT:'Production',cpu:'Xtensa LX7 · 2 cœurs',mhz:'240 MHz',sram:512,sramT:'512 KB + 16 KB RTC',rom:'384 KB',flash:'Jusqu\'à 32 MB (quad / octal)',psram:'Jusqu\'à 32 MB (quad / octal)',psOk:1,gpio:45,gpioT:'45',wifi:4,wifiT:'Wi-Fi 4 · 150 Mbps',b5:0,b6:0,bands:'2,4 GHz',ble:'Oui · 5 (LR, 2M, mesh)',bleOn:1,cl:0,clT:'Non',z:0,zT:'Non',usb:'OTG Full-Speed + Serial/JTAG (flash direct, clavier, clé USB)',direct:1,otg:1,eth:0,can:1,cam:1,adc:'20 voies · 12 bits',dac:'—',touch:'14',dacOn:0,touchOn:1,uart:'3',spi:'4',i2c:'2',i2s:'2',sec:'Secure boot, chiffrement flash, AES/SHA/RSA/HMAC',sleep:'Coprocesseur ULP',temp:'-40…85 °C (105 variantes HT)',pkg:'QFN56 7×7',use:'Caméra, audio, IA légère, interface graphique, USB + BLE.'},
+{id:'s31',n:'ESP32-S31',fam:'S',st:'pre',stT:'Fiche préliminaire (v0.5)',cpu:'RISC-V · 2 cœurs + LP',mhz:'320 MHz (LP 40)',sram:512,sramT:'512 KB + 32 KB LP',rom:'320 KB',flash:'Jusqu\'à 256 MB',psram:'Jusqu\'à 64 MB',psOk:1,gpio:60,gpioT:'60',wifi:6,wifiT:'Wi-Fi 6 (802.11ax)',b5:0,b6:0,bands:'2,4 GHz',ble:'Oui · 5.4',bleOn:1,cl:1,clT:'Oui',z:1,zT:'Oui · Thread 1.4, Zigbee 3.0',usb:'OTG High-Speed + Serial/JTAG',direct:1,otg:1,eth:1,can:1,cam:1,adc:'2 × 12 bits · 16 voies',dac:'—',touch:'Oui (≈14)',dacOn:0,touchOn:1,uart:'4 + 1 LP',spi:'6 + 1 LP',i2c:'2 + 1 LP',i2s:'2',sec:'Secure boot, XTS-AES, AES/ECC/RSA/SHA/HMAC, TEE',sleep:'—',temp:'-40…85 °C',pkg:'QFN80 8×8',use:'Passerelles, multimédia, Ethernet gigabit, multiprotocole.'},
+{id:'c2',n:'ESP32-C2 (ESP8684)',fam:'C',st:'prod',stT:'Production',cpu:'RISC-V · 1 cœur',mhz:'120 MHz',sram:272,sramT:'272 KB',rom:'576 KB',flash:'2 ou 4 MB intégré',psram:'Non',psOk:0,gpio:14,gpioT:'14',wifi:4,wifiT:'Wi-Fi 4 · 72 Mbps',b5:0,b6:0,bands:'2,4 GHz',ble:'Oui · 5.3',bleOn:1,cl:0,clT:'Non',z:0,zT:'Non',usb:'Aucun dans la puce : la carte ajoute un pont USB-UART',direct:0,otg:0,eth:0,can:0,cam:0,adc:'5 voies · 12 bits',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'2',spi:'3 (2 pour la flash)',i2c:'1',i2s:'—',sec:'Secure boot, chiffrement flash, ECC/SHA',sleep:'Deep-sleep 5 µA',temp:'-40…105 °C',pkg:'QFN24 4×4',use:'Produits connectés très simples. Remplace l\'ESP8266.'},
+{id:'c3',n:'ESP32-C3',fam:'C',st:'prod',stT:'Production',cpu:'RISC-V · 1 cœur',mhz:'160 MHz',sram:400,sramT:'400 KB',rom:'384 KB',flash:'4 ou 8 MB intégré (ou externe)',psram:'Non',psOk:0,gpio:22,gpioT:'22 (16 sur variantes)',wifi:4,wifiT:'Wi-Fi 4 · 150 Mbps',b5:0,b6:0,bands:'2,4 GHz',ble:'Oui · 5 (mesh)',bleOn:1,cl:0,clT:'Non',z:0,zT:'Non',usb:'Serial/JTAG intégré : flash et console par câble USB-C direct, sans pont. Pas de clavier ni de clé USB',direct:1,otg:0,eth:0,can:1,cam:0,adc:'2 ADC · 5-6 voies',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'2',spi:'3',i2c:'1',i2s:'1',sec:'Secure boot, chiffrement flash, AES/SHA/RSA/HMAC, signature numérique',sleep:'Deep-sleep 5 µA',temp:'-40…105 °C (125 selon variante)',pkg:'QFN32 5×5',use:'IoT généraliste économique. Variante conseillée : FH4X.'},
+{id:'c5',n:'ESP32-C5',fam:'C',st:'prod',stT:'Production (avr. 2025)',cpu:'RISC-V · 1 cœur + LP',mhz:'240 MHz (LP 48)',sram:384,sramT:'384 KB + 16 KB LP',rom:'320 KB',flash:'4 MB intégré (HF4) ou externe',psram:'2 ou 8 MB intégré (variantes R)',psOk:1,gpio:29,gpioT:'29',wifi:6,wifiT:'Wi-Fi 6 · double bande',b5:1,b6:0,bands:'2,4 + 5 GHz',ble:'Oui · 5 (Core 6.0 certifié)',bleOn:1,cl:0,clT:'Non',z:1,zT:'Oui · Thread 1.4, Zigbee 3.0',usb:'Serial/JTAG intégré : flash et console par câble USB direct, sans pont',direct:1,otg:0,eth:0,can:1,cam:0,adc:'6 voies · 12 bits',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'2 + 1 LP',spi:'1 usage général',i2c:'1 + 1 LP',i2s:'1',sec:'Secure boot, XTS-AES, AES/SHA/RSA/ECC/HMAC, TRNG',sleep:'—',temp:'-40…85 ou 105 °C',pkg:'QFN48 / LGA48 6×6',use:'Wi-Fi 5 GHz avec Thread/Zigbee, 2 contrôleurs CAN FD.'},
+{id:'c6',n:'ESP32-C6',fam:'C',st:'prod',stT:'Production',cpu:'RISC-V · 1 cœur + LP',mhz:'160 MHz (LP 20)',sram:512,sramT:'512 KB + 16 KB LP',rom:'320 KB',flash:'4 / 8 MB intégré ou externe',psram:'Non',psOk:0,gpio:30,gpioT:'30 (22 en QFN32)',wifi:6,wifiT:'Wi-Fi 6 · 2,4 GHz',b5:0,b6:0,bands:'2,4 GHz',ble:'Oui · 5.3',bleOn:1,cl:0,clT:'Non',z:1,zT:'Oui · Thread 1.3, Zigbee 3.0',usb:'Serial/JTAG intégré : flash et console par câble USB-C direct, sans pont',direct:1,otg:0,eth:0,can:1,cam:0,adc:'12 bits (≈7 voies)',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'2 + 1 LP',spi:'2 (1 libre)',i2c:'1 + 1 LP',i2s:'1',sec:'Secure boot, chiffrement flash, AES/SHA/RSA/ECC/HMAC',sleep:'Deep-sleep 7 µA',temp:'-40…105 °C',pkg:'QFN40 / QFN32 5×5',use:'Matter, Zigbee, Thread et Wi-Fi 6 dans une puce.'},
+{id:'c61',n:'ESP32-C61',fam:'C',st:'prod',stT:'Production (juin 2025)',cpu:'RISC-V · 1 cœur',mhz:'160 MHz',sram:320,sramT:'320 KB',rom:'256 KB',flash:'Externe jusqu\'à 32 MB (ou intégré)',psram:'Externe jusqu\'à 32 MB',psOk:1,gpio:30,gpioT:'30',wifi:6,wifiT:'Wi-Fi 6 · 2,4 GHz',b5:0,b6:0,bands:'2,4 GHz',ble:'Oui · 5',bleOn:1,cl:0,clT:'Non',z:0,zT:'Non',usb:'Serial/JTAG intégré : flash et console par câble USB direct, sans pont',direct:1,otg:0,eth:0,can:0,cam:0,adc:'4 voies · 12 bits',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'3',spi:'1 usage général',i2c:'1',i2s:'1',sec:'Secure boot, XTS-AES, SHA/ECC/ECDSA',sleep:'Deep-sleep 10 µA',temp:'-40…105 °C',pkg:'QFN40 / LGA40 5×5',use:'Wi-Fi 6 économique avec PSRAM, sans Thread/Zigbee.'},
+{id:'h2',n:'ESP32-H2',fam:'H',st:'prod',stT:'Production',cpu:'RISC-V · 1 cœur',mhz:'96 MHz',sram:320,sramT:'320 KB + 4 KB LP',rom:'128 KB',flash:'2 ou 4 MB intégré',psram:'Non',psOk:0,gpio:19,gpioT:'19',wifi:0,wifiT:'Non',b5:0,b6:0,bands:'—',ble:'Oui · 5.3',bleOn:1,cl:0,clT:'Non',z:1,zT:'Oui · Thread, Zigbee 3.0, Matter',usb:'Serial/JTAG intégré : flash et console par câble USB direct, sans pont',direct:1,otg:0,eth:0,can:1,cam:0,adc:'5 voies · 12 bits',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'2',spi:'1 usage général',i2c:'2',i2s:'1',sec:'Secure boot, chiffrement flash, AES/SHA/RSA/ECC',sleep:'Deep-sleep 7 µA',temp:'-40…105 °C',pkg:'QFN32 4×4',use:'Capteurs Thread/Zigbee/BLE sur pile.'},
+{id:'h21',n:'ESP32-H21',fam:'H',st:'pre',stT:'Annoncé mars 2026',cpu:'RISC-V · 1 cœur',mhz:'96 MHz',sram:320,sramT:'320 KB',rom:'128 KB',flash:'Externe (ex. variante HF4)',psram:'Non',psOk:0,gpio:19,gpioT:'jusqu\'à 19',wifi:0,wifiT:'Non',b5:0,b6:0,bands:'—',ble:'Oui · 5',bleOn:1,cl:0,clT:'Non',z:1,zT:'Oui · Thread, Zigbee, Matter',usb:'Non précisé',direct:0,otg:0,eth:0,can:0,cam:0,adc:'Oui',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'Oui',spi:'Oui',i2c:'Oui',i2s:'Oui',sec:'—',sleep:'Deep-sleep 5 µA · RX ≈8,2 mA · DC-DC',temp:'—',pkg:'—',use:'Évolution du H2, 20 dBm de puissance d\'émission.'},
+{id:'h4',n:'ESP32-H4',fam:'H',st:'pre',stT:'Échantillons (mars 2026)',cpu:'RISC-V · 2 cœurs (DSP)',mhz:'96 MHz',sram:384,sramT:'384 KB',rom:'128 KB',flash:'Externe',psram:'Externe supporté',psOk:1,gpio:40,gpioT:'jusqu\'à 40',wifi:0,wifiT:'Non',b5:0,b6:0,bands:'—',ble:'Oui · 5.4 (Core 6.0 certifié), LE Audio',bleOn:1,cl:0,clT:'Non',z:1,zT:'Oui · Thread 1.4, Zigbee 3.0',usb:'USB-OTG (Serial/JTAG non précisé)',direct:0,otg:1,eth:0,can:1,cam:0,adc:'Oui',dac:'—',touch:'15',dacOn:0,touchOn:1,uart:'Oui',spi:'Oui',i2c:'Oui',i2s:'Oui',sec:'Secure boot, chiffrement mémoire, ECDSA, TRNG',sleep:'DC-DC intégré',temp:'—',pkg:'—',use:'LE Audio, localisation BLE, IHM basse conso, 802.15.4.'},
+{id:'p4',n:'ESP32-P4',fam:'P',st:'prod',stT:'Production (rév. v3.x)',cpu:'RISC-V · 2 cœurs + LP',mhz:'400 MHz (LP 40)',sram:768,sramT:'768 KB L2 + 8 KB SPM + 32 KB LP',rom:'128 KB',flash:'Externe',psram:'16 ou 32 MB intégré',psOk:1,gpio:55,gpioT:'55',wifi:0,wifiT:'Non (coprocesseur à ajouter)',b5:0,b6:0,bands:'—',ble:'Aucun',bleOn:0,cl:0,clT:'Non',z:0,zT:'Non',usb:'USB 2.0 High-Speed + Full-Speed OTG + Serial/JTAG',direct:1,otg:1,eth:1,can:1,cam:1,adc:'Oui',dac:'—',touch:'Oui',dacOn:0,touchOn:1,uart:'5 + 1 LP',spi:'4 + 1 LP',i2c:'2 + 1 LP · I3C',i2s:'3 + 1 LP',sec:'Secure boot, key manager, signature RSA/ECDSA, AES/SHA',sleep:'Cœur LP 40 MHz',temp:'-40…85 °C',pkg:'QFN104 10×10',use:'Caméra MIPI, écran DSI, H.264, JPEG, HMI et edge AI.'},
+{id:'e22',n:'ESP32-E22',fam:'E',st:'pre',stT:'Échantillons',cpu:'RISC-V · 2 cœurs',mhz:'jusqu\'à 500 MHz',sram:1024,sramT:'≈1 MB',rom:'—',flash:'—',psram:'—',psOk:0,gpio:41,gpioT:'41',wifi:6,wifiT:'Wi-Fi 6E · 2×2 MU-MIMO · 160 MHz',b5:1,b6:1,bands:'2,4 + 5 + 6 GHz',ble:'Oui · 5.4',bleOn:1,cl:1,clT:'Oui (dual-mode)',z:0,zT:'Non',usb:'Interface hôte PCIe 2.1 / SDIO 3.0 (pas de port USB direct confirmé)',direct:0,otg:0,eth:0,can:0,cam:0,adc:'—',dac:'—',touch:'—',dacOn:0,touchOn:0,uart:'—',spi:'—',i2c:'—',i2s:'—',sec:'—',sleep:'—',temp:'—',pkg:'9×9 mm',use:'Coprocesseur radio relié à un hôte par PCIe ou SDIO. Pas une puce autonome.',coproc:1}
+];
+var BYID={};CHIPS.forEach(function(c){BYID[c.id]=c});
+var SHORT={esp8285:'ESP8285',c2:'C2',c3:'C3',c5:'C5',c6:'C6',c61:'C61',h2:'H2',h21:'H21',h4:'H4',s2:'S2',s3:'S3',s31:'S31',p4:'P4',e22:'E22',esp32:'ESP32',esp8266:'ESP8266'};
+var SERIE={Legacy:'ESP8266 (historique)',ESP32:'ESP32 (original)',S:'S · hautes performances',C:'C · RISC-V économique + Wi-Fi',H:'H · BLE + 802.15.4, sans Wi-Fi',P:'P · processeur sans radio',E:'E · coprocesseur radio'};
+
+/* ---------- variantes : [ref, puce, type, flash, psram, antenne, note] ---------- */
+var VARS=[
+['ESP8266EX','esp8266','puce','Externe','—','—','Puce nue QFN32. La flash SPI est un composant à part.'],
+['ESP8285','esp8285','puce','1 MB intégré','—','—','ESP8266 avec 1 MB de flash dans le boîtier : une seule puce suffit.'],
+['ESP-01','esp8266','module','512 KB – 1 MB','—','PCB','8 broches, 2 à 3 GPIO utilisables (GPIO0, GPIO2, UART). 24,75 × 14,5 mm.'],
+['ESP-01S','esp8266','module','1 MB','—','PCB','Version courante de l\'ESP-01, 2 GPIO.'],
+['ESP-02','esp8266','module','1 – 4 MB','—','U.FL','3 GPIO. Antenne externe.'],
+['ESP-03','esp8266','module','Variable','—','Céramique','7 GPIO. Antenne céramique.'],
+['ESP-04','esp8266','module','Variable','—','Aucune (externe)','7 GPIO, pour circuits personnalisés.'],
+['ESP-05','esp8266','module','Variable','—','U.FL','Aucun GPIO libre : sert de modem Wi-Fi série pour un autre microcontrôleur.'],
+['ESP-06','esp8266','module','Variable','—','Aucune','7 GPIO, plots sur les bords, pas d\'antenne.'],
+['ESP-07 / 07S','esp8266','module','1 – 4 MB','—','Céramique + U.FL','9 GPIO (16 broches sur la 07S), blindage métallique.'],
+['ESP-12 / 12E','esp8266','module','4 MB','—','PCB','11 GPIO libres. Très répandu : NodeMCU, boîtiers domotique.'],
+['ESP-12F','esp8266','module','4 MB','—','PCB (améliorée)','Comme la 12E avec une meilleure antenne.'],
+['ESP-12S','esp8266','module','4 MB','—','PCB','Utilisée sur le Wemos D1 mini.'],
+['ESP-13','esp8266','module','4 MB','—','PCB','9 GPIO, 20 × 19,9 mm, orientation industrielle.'],
+['ESP-14','esp8266','module','4 MB','—','PCB','Ajoute un microcontrôleur STM8 aux côtés de l\'ESP8266.'],
+['ESP-WROOM-02 / 02D / 02U','esp8266','module','2 – 4 MB','—','PCB / U.FL','Modules officiels Espressif (02U = antenne externe).'],
+['ESP-12N / 12Q','esp8266','module','4 MB','—','PCB','Variantes d\'ESP-12 vendues par certains fabricants, mêmes broches.'],
+['ESP-WROOM-S2','esp8266','module','Voir fiche','—','PCB','Module Espressif basé sur ESP8266 (ne pas confondre avec l\'ESP32-S2).'],
+['ESP-M1 / M2 / M3','esp8266','module','1 MB','—','PCB','Modules Ai-Thinker basés sur l\'ESP8285, très petits.'],
+
+['ESP32-D0WDQ6','esp32','puce','Externe','Externe possible','—','Première série, boîtier QFN48 6×6, deux cœurs. Ancienne.'],
+['ESP32-D0WD','esp32','puce','Externe','Externe possible','—','QFN48 5×5, deux cœurs. NRND.'],
+['ESP32-D0WD-V3','esp32','puce','Externe','Externe possible','—','Silicium révision V3 (correctifs). La puce nue de référence actuelle.'],
+['ESP32-D0WDR2-V3','esp32','puce','Externe','2 MB intégré','—','Variante avec PSRAM intégrée.'],
+['ESP32-D2WD','esp32','puce','2 MB intégré','—','—','Plus fabriquée.'],
+['ESP32-S0WD','esp32','puce','Externe','—','—','Un seul cœur. NRND.'],
+['ESP32-U4WDH','esp32','puce','4 MB intégré','—','—','Deux cœurs, flash dans le boîtier. Sert aux modules MINI.'],
+['ESP32-PICO-D4','esp32','sip','4 MB','—','—','SiP 7×7 mm : puce + quartz + flash + filtres. Ajouter seulement l\'antenne.'],
+['ESP32-PICO-V3','esp32','sip','4 MB','—','—','PICO-D4 avec silicium V3.'],
+['ESP32-PICO-V3-02','esp32','sip','8 MB','2 MB','—','SiP avec PSRAM.'],
+['ESP32-WROOM-32','esp32','module','4 MB','—','PCB','Premier module public. Ancien.'],
+['ESP32-WROOM-32D / 32U','esp32','module','4 / 8 / 16 MB','—','PCB (D) / U.FL (U)','Basé sur D0WD.'],
+['ESP32-WROOM-32E / 32UE','esp32','module','4 / 8 / 16 MB','—','PCB (E) / U.FL (UE)','Silicium V3, version actuelle.'],
+['ESP32-WROOM-32SE','esp32','module','Voir fiche','—','PCB','Avec élément sécurisé.'],
+['ESP32-WROOM-DA','esp32','module','Voir fiche','—','2 antennes PCB','Double antenne pour mieux capter.'],
+['ESP32-WROVER-E / IE','esp32','module','4 / 8 / 16 MB','8 MB','PCB (E) / externe (IE)','WROVER = WROOM avec PSRAM. Utilise GPIO16 et 17 pour la PSRAM.'],
+['ESP32-WROVER-B / IB','esp32','module','4 / 8 / 16 MB','8 MB','PCB (B) / externe (IB)','Série plus ancienne.'],
+['ESP32-MINI-1 / 1U','esp32','module','4 MB','—','PCB / U.FL','Plus petit, basé sur U4WDH.'],
+['ESP32-SOLO-1 / 1U','esp32','module','4 MB','—','PCB / U.FL','Un seul cœur (S0WD).'],
+['ESP32-PICO-MINI-02 / 02U','esp32','module','8 MB','2 MB','PCB / U.FL','Module compact basé sur PICO-V3-02.'],
+
+['ESP32-S2','s2','puce','Externe','Externe possible','—','Puce nue QFN56.'],
+['ESP32-S2FH4','s2','puce','4 MB intégré','—','—',''],
+['ESP32-S2FN4R2','s2','puce','4 MB intégré','2 MB intégré','—',''],
+['ESP32-S2R2','s2','puce','Externe','2 MB intégré','—',''],
+['ESP32-S2FH2','s2','puce','2 MB intégré','—','—','EOL.'],
+['ESP32-S2-MINI-1 / 1U','s2','module','4 MB','0 ou 2 MB (N4 / N4R2)','PCB / U.FL','Format compact.'],
+['ESP32-S2-MINI-2 / 2U','s2','module','4 MB','0 ou 2 MB','PCB / U.FL',''],
+['ESP32-S2-SOLO / SOLO-U','s2','module','4 MB','0 ou 2 MB','PCB / U.FL',''],
+['ESP32-S2-SOLO-2 / SOLO-2U','s2','module','4 MB','0 ou 2 MB','PCB / U.FL',''],
+['ESP32-S2-WROVER / WROVER-I','s2','module','4 MB','2 MB','PCB / externe','Ancien format.'],
+
+['ESP32-S3','s3','puce','Externe (jusqu\'à 32 MB)','Externe (jusqu\'à 32 MB)','—','Puce nue QFN56.'],
+['ESP32-S3FN8','s3','puce','8 MB intégré','Externe','—',''],
+['ESP32-S3FH4R2','s3','puce','4 MB intégré (haute temp.)','2 MB intégré','—',''],
+['ESP32-S3-PICO-1','s3','sip','8 MB','2 MB','—','SiP avec USB OTG, très compact.'],
+['ESP32-S3-WROOM-1 / 1U — N4, N8, N16','s3','module','4 / 8 / 16 MB','—','PCB / U.FL','Flash seule.'],
+['ESP32-S3-WROOM-1 / 1U — N4R2, N8R2, N16R2','s3','module','4 / 8 / 16 MB','2 MB (quad)','PCB / U.FL','PSRAM 2 MB.'],
+['ESP32-S3-WROOM-1 / 1U — N4R8, N8R8, N16R8','s3','module','4 / 8 / 16 MB','8 MB (octale)','PCB / U.FL','Le plus vendu. La PSRAM octale occupe des GPIO (autour de 35 à 37).'],
+['ESP32-S3-WROOM-2 / 2U — N16R8V, N32R8V, N32R16V','s3','module','16 / 32 MB (octale)','8 / 16 MB (octale)','PCB / U.FL','Flash et PSRAM en 1,8 V (V). Plus rare.'],
+['ESP32-S3-MINI-1 / 1U — N4, N8, R2','s3','module','4 / 8 MB','0 ou 2 MB','PCB / U.FL','Plus petit, moins de GPIO.'],
+
+['ESP32-S31','s31','puce','Externe (jusqu\'à 256 MB)','Externe (jusqu\'à 64 MB)','—','Fiche préliminaire. Boîtier QFN80.'],
+['ESP32-S31NRV16 / NRV32','s31','puce','16 / 32 MB','Voir fiche','—','Variantes en boîtier.'],
+['ESP32-S31-WROOM-1 / 1U','s31','module','8 / 16 / 32 MB','16 / 32 MB','PCB / U.FL','Selon page modules Espressif.'],
+['ESP32-S31-WROOM-3 / 3U','s31','module','8 / 16 / 32 MB','16 / 32 MB','PCB / U.FL',''],
+
+['ESP8684H2X','c2','puce','2 MB intégré','—','—','Nom de puce du ESP32-C2. QFN24.'],
+['ESP8684H4X','c2','puce','4 MB intégré','—','—',''],
+['ESP8684-MINI-1 et modules WROOM','c2','module','2 / 4 MB','—','PCB / U.FL','Chercher « ESP8684 » ou « ESP32-C2 » : même puce.'],
+
+['ESP32-C3','c3','puce','Externe','—','—','Puce nue QFN32, sans flash.'],
+['ESP32-C3FN4','c3','puce','4 MB intégré','—','—','Ancienne révision (EOL / NRND).'],
+['ESP32-C3FH4','c3','puce','4 MB intégré (haute temp.)','—','—','Ancienne révision (NRND).'],
+['ESP32-C3FH4X','c3','puce','4 MB intégré','—','—','Variante recommandée en 4 MB.'],
+['ESP32-C3FH8X','c3','puce','8 MB intégré','—','—','En production.'],
+['ESP32-C3-WROOM-02 / 02U','c3','module','4 MB','—','PCB / U.FL',''],
+['ESP32-C3-MINI-1 / 1U / 1H','c3','module','4 MB','—','PCB / U.FL','1H = haute température.'],
+
+['ESP32-C5HF4','c5','puce','4 MB intégré','—','—','QFN48 6×6 ou LGA48.'],
+['ESP32-C5HR2 / C5HR8','c5','puce','Externe','2 / 8 MB intégré','—',''],
+['ESP32-C5NF8R2','c5','puce','8 MB intégré','2 MB intégré','—','Température 85 °C.'],
+
+['ESP32-C6','c6','puce','Externe','—','—','QFN40, 30 GPIO.'],
+['ESP32-C6FH4 / FH8','c6','puce','4 / 8 MB intégré','—','—','QFN32, 22 GPIO.'],
+['ESP32-C6-WROOM-1 / 1U','c6','module','4 / 8 / 16 MB','—','PCB / U.FL',''],
+['ESP32-C6-MINI-1 / 1U','c6','module','4 MB','—','PCB / U.FL',''],
+
+['ESP32-C61 (4 variantes)','c61','puce','Externe ou intégrée','Externe ou intégrée','—','Voir tableau de commande de la fiche.'],
+
+['ESP32-H2FH2S','h2','puce','2 MB intégré','—','—',''],
+['ESP32-H2FH4S','h2','puce','4 MB intégré','—','—',''],
+['ESP32-H2-MINI-1 / 1U','h2','module','2 / 4 MB','—','PCB / U.FL',''],
+['ESP32-H21HF4','h21','puce','4 MB intégré','—','—','Annoncé mars 2026.'],
+['ESP32-H21-MINI-1','h21','module','Voir fiche','—','PCB',''],
+['ESP32-H4','h4','puce','Externe','Externe possible','—','En échantillons.'],
+
+['ESP32-P4 (PSRAM 16 MB)','p4','puce','Externe','16 MB intégré','—','Rév. v3.x. QFN104 10×10.'],
+['ESP32-P4 (PSRAM 32 MB)','p4','puce','Externe','32 MB intégré','—',''],
+['ESP32-E22','e22','puce','—','—','—','Coprocesseur radio. Boîtier 9×9 mm.']
+];
+/* ---------- cartes : [nom, puce, connecteur, mode USB, remarque] ---------- */
+var BOARDS=[
+/* [nom, puce, connecteur(micro|usbc|mixed|none), usb(bridge|native|both|none), format(mini|std|large), intégré[], remarque] */
+['ESP-01 / ESP-01S + adaptateur USB','esp8266','none','none','mini',[],'Module nu à 8 broches : il faut un petit adaptateur USB-série (CH340).'],
+['ESP-12F nu (plaque d\'adaptation)','esp8266','none','none','mini',[],'Module sur adaptateur, à intégrer dans un montage.'],
+['NodeMCU v2 (Amica)','esp8266','micro','bridge','std',[],'Pont CP2102. Module ESP-12E, 4 MB, 11 GPIO libres.'],
+['NodeMCU v3 (LoLin)','esp8266','micro','bridge','std',[],'Pont CH340G. Carte plus large que la v2. Design communautaire multi-fabricants : la plupart des lots sont en micro-USB, mais des revendeurs (ex. AZ-Delivery) vendent désormais une variante USB-C — vérifiez la sérigraphie.'],
+['Wemos / LOLIN D1 mini','esp8266','usbc','bridge','mini',[],'Pont CH340G, module ESP-12S. V4.0.0 (actuelle) en USB-C ; versions antérieures (jusqu\'à V3) en micro-USB, vérifiez la sérigraphie sur les clones. Nombreux shields (relais, OLED, capteurs).'],
+['Wemos / LOLIN D1 mini Pro','esp8266','micro','bridge','mini',['U.FL'],'16 MB de flash, connecteur U.FL pour antenne externe.'],
+['Wemos / LOLIN D1 mini Lite','esp8285','micro','bridge','mini',[],'ESP8285 avec 1 MB de flash.'],
+['Wemos D1 (format Arduino Uno)','esp8266','micro','bridge','large',[],'Reprend les broches d\'un Arduino Uno.'],
+['Adafruit Feather HUZZAH ESP8266','esp8266','micro','bridge','std',['batterie'],'Pont CP2104, format Feather avec charge LiPo.'],
+
+['ESP32-DevKitC (V4)','esp32','micro','bridge','std',[],'Carte officielle, module WROOM-32E, pont CP2102N.'],
+['ESP32-DevKitM-1','esp32','micro','bridge','std',[],'Carte officielle avec module MINI-1.'],
+['ESP32 DevKit V1 (DOIT, clones)','esp32','micro','bridge','std',[],'30 ou 38 broches. Pont CP2102 ou CH340 selon le lot. Le plus courant en clone.'],
+['ESP32-WROVER-KIT','esp32','micro','bridge','large',['microSD'],'Pont FT2232 (UART + JTAG), lecteur microSD, connecteur d\'écran LCD.'],
+['ESP32-CAM (Ai-Thinker)','esp32','none','none','std',['camera','microSD'],'Pas d\'USB : carte MB micro-USB (CH340) ou adaptateur FTDI.'],
+['LOLIN D32','esp32','micro','bridge','std',['batterie'],'Charge LiPo.'],
+['LOLIN D32 Pro','esp32','micro','bridge','std',['batterie','microSD'],'Charge LiPo, microSD, PSRAM.'],
+['TTGO T-Display','esp32','usbc','bridge','std',['ecran','batterie'],'Écran couleur 1,14″ intégré.'],
+['TTGO / LilyGO LoRa32','esp32','micro','bridge','std',['LoRa','ecran','batterie'],'LoRa + OLED + charge LiPo.'],
+['LilyGO T-Beam','esp32','micro','bridge','large',['LoRa','batterie'],'LoRa + GPS + support d\'accus 18650. (Le T-Beam Supreme/1W à base d\'ESP32-S3 est en USB-C, mais c\'est un autre modèle.)'],
+['M5Stack Core / Core2','esp32','usbc','bridge','large',['ecran','batterie','microSD','audio'],'Boîtier tout-en-un avec écran tactile (Core2).'],
+['M5StickC Plus2','esp32','usbc','bridge','mini',['ecran','batterie'],'Petit boîtier avec écran et batterie.'],
+['M5Stack Atom Lite / Matrix','esp32','usbc','bridge','mini',[],'Cube de 24 mm, LED RGB (Matrix : matrice 5×5).'],
+['Adafruit HUZZAH32 (Feather ESP32)','esp32','micro','bridge','std',['batterie'],'Pont CP2104.'],
+['Adafruit Feather ESP32 V2','esp32','usbc','bridge','std',['batterie'],'USB-C, connecteur STEMMA QT.'],
+['SparkFun ESP32 Thing Plus','esp32','usbc','bridge','std',['batterie','microSD'],'USB-C, microSD, LiPo.'],
+
+['LOLIN / Wemos S2 mini','s2','usbc','native','mini',[],'Pas de pont : le port est relié à la puce. Clavier et clé USB possibles.'],
+['LOLIN S2 Pico','s2','usbc','native','mini',['ecran','batterie'],'Avec écran OLED et charge LiPo.'],
+['Adafruit QT Py ESP32-S2','s2','usbc','native','mini',[],'Très petit, STEMMA QT.'],
+['Unexpected Maker FeatherS2','s2','usbc','native','std',['batterie'],'Format Feather, PSRAM.'],
+
+['ESP32-S3-DevKitC-1','s3','mixed','both','std',[],'Carte officielle, module WROOM-1. Un port pont UART, un port natif.'],
+['ESP32-S3 N16R8 (clones 2 ports)','s3','usbc','both','std',[],'Très courant. Un port pont UART (CH340 / CP2102) + un port natif.'],
+['Seeed XIAO ESP32S3','s3','usbc','native','mini',['batterie','U.FL'],'Minuscule (21 × 17,8 mm), 8 MB PSRAM.'],
+['Seeed XIAO ESP32S3 Sense','s3','usbc','native','mini',['camera','microSD','batterie','U.FL'],'Avec caméra, micro et lecteur microSD.'],
+['ESP32-S3 SuperMini','s3','usbc','native','mini',[],'Mini carte bon marché, mémoire variable selon le vendeur.'],
+['Waveshare ESP32-S3-Zero','s3','usbc','native','mini',[],'Format timbre-poste.'],
+['LilyGO T-Display-S3','s3','usbc','native','std',['ecran','batterie'],'Écran couleur 1,9″.'],
+['Arduino Nano ESP32','s3','usbc','native','mini',[],'Module u-blox NORA-W106 (S3), format Nano.'],
+['M5Stack AtomS3','s3','usbc','native','mini',['ecran'],'Cube avec mini écran.'],
+['M5Stack Cardputer','s3','usbc','native','std',['ecran','batterie'],'Mini ordinateur avec clavier et écran.'],
+['ESP32-S3-BOX-3','s3','usbc','native','large',['ecran','audio'],'Boîtier avec écran et micro pour la voix.'],
+['Freenove ESP32-S3 WROOM CAM','s3','usbc','both','std',['camera','microSD'],'Carte caméra avec lecteur microSD.'],
+['Adafruit Feather ESP32-S3','s3','usbc','native','std',['batterie'],'Format Feather.'],
+['Heltec WiFi LoRa 32 V3','s3','usbc','bridge','std',['LoRa','ecran','batterie'],'LoRa + OLED + LiPo.'],
+
+['ESP32-C3-DevKitM-1 / DevKitC-02','c3','micro','bridge','std',[],'Cartes officielles. Composant USB selon la révision.'],
+['ESP32-C3 SuperMini','c3','usbc','native','mini',[],'Quelques cm², 4 MB de flash, antenne céramique.'],
+['Seeed XIAO ESP32C3','c3','usbc','native','mini',['batterie','U.FL'],'21 × 17,8 mm, charge batterie.'],
+['LOLIN C3 Mini','c3','usbc','native','mini',[],'Compatible shields D1 mini.'],
+['Adafruit QT Py ESP32-C3','c3','usbc','native','mini',[],'STEMMA QT.'],
+['Waveshare ESP32-C3-Zero','c3','usbc','native','mini',[],'Format timbre-poste.'],
+
+['ESP32-C6-DevKitC-1','c6','usbc','both','std',[],'Carte officielle, 2 ports USB-C.'],
+['Seeed XIAO ESP32C6','c6','usbc','native','mini',['batterie','U.FL'],'Wi-Fi 6 + Thread/Zigbee, très petit.'],
+['ESP32-C6 SuperMini','c6','usbc','native','mini',[],'Mini carte bon marché.'],
+['Waveshare ESP32-C6-Zero','c6','usbc','native','mini',[],'Format timbre-poste.'],
+['ESP32-C5-DevKitC-1','c5','usbc','both','std',[],'Carte officielle, double bande 5 GHz.'],
+['ESP32-C61-DevKitC-1','c61','usbc','both','std',[],'Carte officielle Wi-Fi 6.'],
+['ESP8684-DevKitM-1 (ESP32-C2)','c2','mixed','bridge','std',[],'Carte officielle C2. Pas d\'USB natif sur la puce.'],
+['ESP32-H2-DevKitM-1','h2','usbc','both','std',[],'Carte officielle BLE + Thread/Zigbee.'],
+['ESP32-P4-Function-EV-Board','p4','usbc','both','large',['ecran','camera','microSD','audio'],'Écran MIPI DSI, caméra MIPI CSI, Ethernet, USB 2.0 haut débit.']
+];
+var CONNT={micro:'micro-USB',usbc:'USB-C',mixed:'micro-USB ou USB-C',none:'Aucun'};
+var USBT={bridge:'Pont UART',native:'Natif',both:'Pont + natif',none:'Aucun'};
+var SIZET={mini:'Mini',std:'Standard',large:'Grande'};
+
+/* ---------- utilitaires ---------- */
+function $(s,r){return (r||document).querySelector(s)}
+function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function badge(c){return '<span class="badge '+c.st+'">'+(c.badgeT||(c.st==='prod'?'Production':c.st==='pre'?'Préliminaire':'Legacy'))+'</span>'}
+
+var TABS=['wiz','u','cmp','chips','tree','vars','read','miss'];
+function showTab(k){
+  TABS.forEach(function(t){var on=t===k,b=$('#t-'+t);if(b)b.setAttribute('aria-selected',on);$('#p-'+t).hidden=!on});
+  try{history.replaceState(null,'','#'+k)}catch(e){}
+  window.scrollTo(0,0);
+}
+TABS.forEach(function(t){$('#t-'+t).addEventListener('click',function(){showTab(t)})});
+
+function pillFor(id){
+  var c=BYID[id];
+  var b=el('button','pill'+(c.st!=='prod'?' cu':''),SHORT[id]);
+  b.type='button';b.title=c.n+' · '+c.stT;
+  b.addEventListener('click',function(){gotoChip(id)});
+  return b;
+}
+
+/* ---------- arbre binaire ---------- */
+/* nœud : {q, s (court), h, o (oui), n (non)} ; feuille : {leaf:[ids], t (court), why} */
+var TREE={
+ q:'Mon projet a-t-il besoin du Wi-Fi ?',s:'Besoin de Wi-Fi ?',h:'Non = pile, Thread, Zigbee, BLE seul, ou calcul local sans réseau.',
+ o:{
+  q:'Ai-je besoin du 6 GHz (Wi-Fi 6E) ?',s:'Wi-Fi 6 en 6 GHz ?',h:'Très rare.',
+  o:{leaf:['e22'],t:'Coprocesseur radio Wi-Fi 6E',why:'Coprocesseur radio : il se branche à un autre processeur par PCIe, SDIO ou USB. Il ne remplace pas un ESP32 autonome.'},
+  n:{
+   q:'Ai-je besoin du 5 GHz ?',s:'Besoin du 5 GHz ?',h:'Certains réseaux ne diffusent qu\'en 5 GHz.',
+   o:{leaf:['c5'],t:'Double bande 2,4 + 5 GHz',why:'Seul microcontrôleur autonome double bande 2,4 + 5 GHz, Wi-Fi 6, BLE, Thread, Zigbee.'},
+   n:{
+    q:'Ai-je besoin de Bluetooth Classic, d\'Ethernet intégré ou d\'un DAC ?',s:'BT Classic, Ethernet ou DAC ?',h:'Audio A2DP, liaison série SPP, câble réseau direct, sortie analogique.',
+    o:{
+     q:'Ai-je besoin aussi de Wi-Fi 6, d\'USB haut débit ou de plus de 40 GPIO ?',s:'Wi-Fi 6, USB HS ou plus de 40 GPIO ?',h:'Cela écarte l\'ESP32 original.',
+     o:{leaf:['s31'],t:'Wi-Fi 6, USB HS, 60 GPIO',why:'2 cœurs 320 MHz, Wi-Fi 6, BT Classic + BLE 5.4, Thread/Zigbee, Ethernet gigabit, USB HS, 60 GPIO. Fiche préliminaire.'},
+     n:{leaf:['esp32'],t:'BT Classic + Ethernet + DAC',why:'Seule puce Wi-Fi 4 avec BT Classic + Ethernet MAC + DAC. Ancienne génération, énorme base de code.'}
+    },
+    n:{
+     q:'Ai-je besoin de Thread, Zigbee ou Matter ?',s:'Thread, Zigbee ou Matter ?',h:'Domotique en maillage.',
+     o:{
+      q:'Mon besoin est-il très gros (Ethernet gigabit, USB haut débit, 60 GPIO) ?',s:'Très gros besoin (Ethernet Gb, 60 GPIO) ?',h:'Passerelle ou multimédia.',
+      o:{leaf:['s31'],t:'Tout dans une puce',why:'Tout dans une puce, mais fiche encore préliminaire.'},
+      n:{leaf:['c6'],t:'Wi-Fi 6 + Thread + Zigbee',why:'Wi-Fi 6 + BLE + Thread/Zigbee, 30 GPIO, 512 KB. Le choix courant pour Matter.'}
+     },
+     n:{
+      q:'Ai-je besoin du Wi-Fi 6 ?',s:'Besoin du Wi-Fi 6 ?',h:'Meilleur en réseau chargé.',
+      o:{leaf:['c61'],t:'Wi-Fi 6 économique',why:'Wi-Fi 6 économique, 320 KB, PSRAM externe jusqu\'à 32 MB. Sans Thread ni Zigbee.'},
+      n:{
+       q:'Ai-je besoin d\'une caméra, d\'un écran, d\'audio, d\'IA légère ou de faire clavier / clé USB ?',s:'Caméra, écran, audio, IA ou clé USB ?',h:'Plus de calcul, plus de GPIO, de la PSRAM.',
+       o:{
+        q:'Ai-je besoin du Bluetooth ?',s:'Besoin du Bluetooth ?',h:'Le S2 n\'en a pas.',
+        o:{leaf:['s3'],t:'Caméra, IA, USB OTG, BLE',why:'2 cœurs 240 MHz, instructions vectorielles, PSRAM octale jusqu\'à 32 MB, 45 GPIO, USB OTG, BLE 5.'},
+        n:{leaf:['s2'],t:'USB OTG, DAC, sans BLE',why:'1 cœur 240 MHz, 43 GPIO, USB OTG, DAC, tactile. Pas de BLE.'}
+       },
+       n:{
+        q:'Mon projet est-il simple (quelques capteurs, relais, écran OLED) avec 11 GPIO libres suffisants ?',s:'Projet simple (≤ 11 GPIO) ?',h:'Prise connectée, sonde, relais, afficheur.',
+        o:{
+         q:'Ai-je besoin du Bluetooth ?',s:'Besoin du Bluetooth ?',h:'Non = le Wi-Fi 4 seul me suffit, l\'ESP8266 reste alors un bon choix.',
+         o:{leaf:['c2'],t:'Le plus simple, BLE 5.3',why:'Le plus simple et le plus petit des RISC-V : 120 MHz, 272 KB, 14 GPIO, BLE 5.3. Successeur recommandé de l\'ESP8266.'},
+         n:{leaf:['esp8266'],t:'Wemos D1 mini, NodeMCU, ESP-01',why:'Toujours très répandu : Wemos D1 mini, NodeMCU, ESP-01, ESP-12F. Peu cher à l\'usage, énorme base de code (Arduino, ESPHome, Tasmota). Limites : pas de BLE, 1 ADC 10 bits, ~11 GPIO libres, pas d\'USB dans la puce.'}
+        },
+        n:{leaf:['c3'],t:'Le généraliste, USB direct',why:'Le généraliste : 160 MHz, 400 KB, 22 GPIO, BLE 5, USB direct par câble.'}
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ n:{
+  q:'Ai-je besoin d\'un gros calcul (caméra, écran, Ethernet, USB haut débit) ?',s:'Gros calcul (caméra, écran, Ethernet) ?',h:'Cela demande plus que des capteurs.',
+  o:{leaf:['p4'],t:'Caméra, écran, Ethernet, sans radio',why:'400 MHz, MIPI CSI/DSI, H.264, USB haut débit, Ethernet. Aucune radio : on lui ajoute un C6, C5 ou E22 si besoin.'},
+  n:{
+   q:'Ai-je besoin de LE Audio, de 2 cœurs ou de plus de 20 GPIO ?',s:'LE Audio, 2 cœurs ou plus de 20 GPIO ?',h:'Au-delà des capteurs simples sur pile.',
+   o:{leaf:['h4'],t:'BLE 5.4, LE Audio, 40 GPIO',why:'2 cœurs 96 MHz, 40 GPIO, BLE 5.4, LE Audio, 802.15.4, USB-OTG. En échantillons.'},
+   n:{
+    q:'Ai-je besoin d\'une puce en production depuis longtemps ?',s:'Puce éprouvée, en production ?',h:'Non = j\'accepte une puce annoncée en 2026.',
+    o:{leaf:['h2'],t:'BLE + Thread, 19 GPIO',why:'1 cœur 96 MHz, 19 GPIO, BLE 5.3 + Thread/Zigbee, en production, bien documenté.'},
+    n:{leaf:['h21'],t:'Successeur du H2, DC-DC',why:'Successeur du H2 avec DC-DC intégré et 20 dBm. Specs encore partielles.'}
+   }
+  }
+ }
+};
+
+/* ----- schéma SVG ----- */
+var NS='http://www.w3.org/2000/svg';
+var GAP=14,LVH=124,DW=176,DH=78,LW=140,LHT=58,PADX=16,PADY=12;
+var DG={all:[],W:0,H:0,scale:1};
+function S(tag,at,par){var e=document.createElementNS(NS,tag);for(var k in at)e.setAttribute(k,at[k]);if(par)par.appendChild(e);return e}
+function wrapText(s,max){
+  var w=s.split(' '),lines=[],cur='';
+  w.forEach(function(x){if((cur+' '+x).trim().length>max&&cur){lines.push(cur);cur=x}else cur=(cur+' '+x).trim()});
+  if(cur)lines.push(cur);return lines;
+}
+function hw(n){return (n.leaf?LW:DW)/2}
+/* mise en page compacte : une question qui a un résultat et une sous-question
+   garde la sous-question juste en dessous et pose le résultat à côté */
+function profile(n,d){
+  n._d=d;
+  if(n.leaf){n._pf={min:[-hw(n)],max:[hw(n)]};return n._pf}
+  var A=profile(n.o,d+1),B=profile(n.n,d+1);
+  if(n.o.leaf!==n.n.leaf){
+    var I=n.o.leaf?n.n:n.o,Lf=n.o.leaf?n.o:n.n,side=(Lf===n.o)?-1:1;
+    I._dx=0;Lf._dx=side*(hw(I)+hw(Lf)+GAP);
+  }else{
+    var off=0,len=Math.min(A.max.length,B.max.length);
+    for(var i=0;i<len;i++)off=Math.max(off,A.max[i]-B.min[i]+GAP);
+    n.o._dx=-off/2;n.n._dx=off/2;
+  }
+  var mn=[-hw(n)],mx=[hw(n)],L=Math.max(A.max.length,B.max.length);
+  for(var j=0;j<L;j++){
+    var lo=1e9,hi=-1e9;
+    [[n.o,A],[n.n,B]].forEach(function(p){if(j<p[1].max.length){lo=Math.min(lo,p[1].min[j]+p[0]._dx);hi=Math.max(hi,p[1].max[j]+p[0]._dx)}});
+    mn.push(lo);mx.push(hi);
+  }
+  n._pf={min:mn,max:mx};return n._pf;
+}
+function layoutDG(){
+  var all=[],maxD=0;
+  profile(TREE,0);
+  TREE._x=0;
+  var minX=1e9,maxX=-1e9;
+  (function rec(n,p){n._p=p;all.push(n);if(n._d>maxD)maxD=n._d;
+    if(p)n._x=p._x+n._dx;
+    minX=Math.min(minX,n._x-hw(n));maxX=Math.max(maxX,n._x+hw(n));
+    if(!n.leaf){rec(n.o,n);rec(n.n,n)}})(TREE,null);
+  DG.all=all;DG.off=PADX-minX;DG.W=maxX-minX+2*PADX;DG.H=maxD*LVH+LHT+2*PADY;
+}
+function cxOf(n){return DG.off+n._x}
+function topOf(n){return PADY+n._d*LVH}
+function drawDG(){
+  layoutDG();
+  var svg=$('#dg');svg.innerHTML='';
+  svg.setAttribute('viewBox','0 0 '+DG.W+' '+DG.H);
+  var ge=S('g',{},svg),gn=S('g',{},svg);
+  DG.all.forEach(function(n){
+    if(!n._p)return;
+    var p=n._p,px=cxOf(p),pb=topOf(p)+DH,jy=pb+12,cx=cxOf(n),ct=topOf(n),yes=(p.o===n);
+    var g=S('g',{'class':'eg'},ge);n._eg=g;
+    S('polyline',{'class':'edge',points:px+','+pb+' '+px+','+jy+' '+cx+','+jy+' '+cx+','+ct},g);
+    var straight=Math.abs(cx-px)<1;
+    var mx=straight?cx:px+(cx-px)*0.5,my=straight?pb+31:jy;
+    S('circle',{'class':yes?'yc':'nc',cx:mx,cy:my,r:13},g);
+    var tx=S('text',{x:mx,y:my+3.5,'text-anchor':'middle','font-size':10,'font-weight':700},g);tx.textContent=yes?'OUI':'NON';
+  });
+  DG.all.forEach(function(n){
+    var cx=cxOf(n),top=topOf(n);
+    var g=S('g',{'class':'nd',tabindex:0,role:'button'},gn);n._g=g;
+    if(n.leaf){
+      var id=n.leaf[0];
+      g.setAttribute('aria-label','Résultat : '+BYID[id].n);
+      S('rect',{'class':'lf',x:cx-LW/2,y:top,width:LW,height:LHT,rx:12},g);
+      var nm=S('text',{'class':'nm',x:cx,y:top+22,'text-anchor':'middle','font-size':SHORT[id].length>5?13:15},g);nm.textContent=SHORT[id];
+      wrapText(n.t,25).forEach(function(l,i){var t=S('text',{x:cx,y:top+37+i*11,'text-anchor':'middle','font-size':10},g);t.textContent=l});
+    }else{
+      g.setAttribute('aria-label','Question : '+n.q);
+      var h=DH,w=DW,m=top+h/2;
+      S('polygon',{'class':'q',points:cx+','+(top+4)+' '+(cx+w/2-4)+','+m+' '+cx+','+(top+h-4)+' '+(cx-w/2+4)+','+m},g);
+      var lines=wrapText(n.s,18);
+      lines.forEach(function(l,i){var t=S('text',{x:cx,y:m+3.5-(lines.length-1)*6.5+i*13,'text-anchor':'middle','font-size':11.5,'font-weight':600},g);t.textContent=l});
+    }
+    var act=function(){if(DG.dragged)return;dgSelect(n)};
+    g.addEventListener('click',act);
+    g.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();dgSelect(n)}});
+  });
+  var w=$('#dgwrap');DG.scale=Math.min(1,Math.max(.6,(w.clientWidth-2)/DG.W));
+  applyScale();
+}
+function applyScale(){var svg=$('#dg');svg.setAttribute('width',Math.round(DG.W*DG.scale));svg.setAttribute('height',Math.round(DG.H*DG.scale))}
+function setScale(s,focusX){
+  var w=$('#dgwrap');var cxv=(w.scrollLeft+w.clientWidth/2)/DG.scale,cyv=(w.scrollTop+w.clientHeight/2)/DG.scale;
+  DG.scale=Math.max(.25,Math.min(1.6,s));applyScale();
+  w.scrollLeft=cxv*DG.scale-w.clientWidth/2;w.scrollTop=cyv*DG.scale-w.clientHeight/2;
+}
+function dgClear(){$('#dg').classList.remove('has-hl');DG.all.forEach(function(n){n._g.classList.remove('hl');if(n._eg)n._eg.classList.remove('hl')})}
+function dgSelect(n){
+  dgClear();$('#dg').classList.add('has-hl');
+  var x=n;while(x){x._g.classList.add('hl');if(x._eg)x._eg.classList.add('hl');x=x._p}
+  var d=$('#detail');d.innerHTML='';
+  if(n.leaf){
+    var l=el('div','dl');n.leaf.forEach(function(id){l.appendChild(pillFor(id))});l.appendChild(el('span','',esc(BYID[n.leaf[0]].n)));d.appendChild(l);
+    d.appendChild(el('div','dh',esc(n.why)));
+    var id=n.leaf[0],bt=el('div','btns');
+    [['Fiche',function(){gotoChip(id)}],['Variantes et modules',function(){gotoVars(id)}],['Cartes',function(){gotoBoards(id)}]].forEach(function(x){
+      var b=el('button','btn',x[0]);b.type='button';b.addEventListener('click',x[1]);bt.appendChild(b)});
+    d.appendChild(bt);
+    var bl=BOARDS.filter(function(b){return b[1]===id});
+    if(bl.length){var bw=el('div','dl');bw.style.marginTop='8px';bw.appendChild(el('span','dh','Cartes courantes :'));bl.slice(0,8).forEach(function(b){var x=el('button','chipbtn',esc(b[0]));x.type='button';x.addEventListener('click',function(){gotoBoardsQ(b[0])});bw.appendChild(x)});if(bl.length>8){var mo=el('button','chipbtn','+'+(bl.length-8));mo.type='button';mo.addEventListener('click',function(){gotoBoards(id)});bw.appendChild(mo)}d.appendChild(bw)}
+  }else{
+    d.appendChild(el('div','dq',esc(n.q)));d.appendChild(el('div','dh',esc(n.h||'')));
+  }
+}
+function buildTree(){
+  drawDG();
+  var s=$('#goto');s.innerHTML='<option value="">Choisir…</option>';
+  var seen={};
+  DG.all.forEach(function(n,i){if(n.leaf){var id=n.leaf[0];var o=document.createElement('option');o.value=String(i);o.textContent=BYID[id].n+(seen[id]?' (2e chemin)':'');seen[id]=1;s.appendChild(o)}});
+  s.addEventListener('change',function(){
+    if(s.value==='')return;var n=DG.all[+s.value];dgSelect(n);
+    var w=$('#dgwrap');w.scrollLeft=cxOf(n)*DG.scale-w.clientWidth/2;w.scrollTop=topOf(n)*DG.scale-w.clientHeight/2;
+  });
+  $('#clearhl').addEventListener('click',function(){dgClear();s.value='';$('#detail').innerHTML='<div class="dh">Cliquez un losange ou une puce pour afficher le détail ici.</div>'});
+  $('#zin').addEventListener('click',function(){setScale(DG.scale*1.2)});
+  $('#zout').addEventListener('click',function(){setScale(DG.scale/1.2)});
+  $('#zfit').addEventListener('click',function(){var w=$('#dgwrap');setScale(Math.min(w.clientWidth/DG.W,w.clientHeight/DG.H));w.scrollLeft=0;w.scrollTop=0});
+  var w=$('#dgwrap'),st=null;
+  w.addEventListener('pointerdown',function(e){if(e.pointerType!=='mouse')return;st={x:e.clientX,y:e.clientY,l:w.scrollLeft,t:w.scrollTop};DG.dragged=false});
+  window.addEventListener('pointermove',function(e){if(!st)return;var dx=e.clientX-st.x,dy=e.clientY-st.y;if(Math.abs(dx)+Math.abs(dy)>5){DG.dragged=true;w.classList.add('drag')}if(DG.dragged){w.scrollLeft=st.l-dx;w.scrollTop=st.t-dy}});
+  window.addEventListener('pointerup',function(){st=null;w.classList.remove('drag');setTimeout(function(){DG.dragged=false},0)});
+  /* centre la racine à l'ouverture */
+  w.scrollLeft=Math.max(0,cxOf(TREE)*DG.scale-w.clientWidth/2);
+}
+
+/* ---------- tableau des puces ---------- */
+var ROWS=[
+ ['g','Général'],
+ ['Série',function(c){return SERIE[c.fam]||c.fam}],
+ ['Statut',function(c){return c.stT}],
+ ['CPU',function(c){return c.cpu}],
+ ['Fréquence',function(c){return c.mhz}],
+ ['SRAM',function(c){return c.sramT}],
+ ['ROM',function(c){return c.rom}],
+ ['Flash',function(c){return c.flash}],
+ ['PSRAM',function(c){return c.psram}],
+ ['g','Sans-fil'],
+ ['Wi-Fi',function(c){return c.wifiT}],
+ ['Bandes',function(c){return c.bands}],
+ ['Bluetooth LE',function(c){return c.ble}],
+ ['BT Classic',function(c){return c.clT}],
+ ['802.15.4',function(c){return c.zT}],
+ ['g','USB et interfaces'],
+ ['USB dans la puce',function(c){return c.usb}],
+ ['GPIO (puce)',function(c){return c.gpioT},'num'],
+ ['Ethernet MAC',function(c){return c.eth?'Oui':'Non'}],
+ ['CAN / TWAI',function(c){return c.can?'Oui':'Non / non confirmé'}],
+ ['Caméra / écran',function(c){return c.cam?'Oui':'Non'}],
+ ['ADC',function(c){return c.adc}],
+ ['DAC',function(c){return c.dac}],
+ ['Tactile',function(c){return c.touch}],
+ ['UART',function(c){return c.uart}],
+ ['SPI',function(c){return c.spi}],
+ ['I²C',function(c){return c.i2c}],
+ ['I²S',function(c){return c.i2s}],
+ ['g','Divers'],
+ ['Sécurité',function(c){return c.sec}],
+ ['Basse conso',function(c){return c.sleep}],
+ ['Température',function(c){return c.temp}],
+ ['Boîtier',function(c){return c.pkg}],
+ ['Usage typique',function(c){return c.use}]
+];
+var SHOWN={};CHIPS.forEach(function(c){SHOWN[c.id]=true});
+function renderPick(){
+  var p=$('#pick');p.innerHTML='';
+  function mk(lbl,fn){var b=el('button','chipbtn',lbl);b.type='button';b.addEventListener('click',function(){CHIPS.forEach(function(c){SHOWN[c.id]=fn(c)});renderPick();renderTable()});p.appendChild(b)}
+  mk('Tout',function(){return true});
+  mk('Avec Wi-Fi',function(c){return !!c.wifi});
+  mk('Sans Wi-Fi',function(c){return !c.wifi});
+  CHIPS.forEach(function(c){
+    var b=el('button','chipbtn',SHORT[c.id]);b.type='button';b.setAttribute('aria-pressed',!!SHOWN[c.id]);
+    b.addEventListener('click',function(){SHOWN[c.id]=!SHOWN[c.id];renderPick();renderTable()});
+    p.appendChild(b);
+  });
+}
+function cls(v){var s=String(v);if(/^(Non|Aucun|—)/.test(s))return 'dim';if(/^Oui/.test(s))return 'yes2';return ''}
+var SEL={col:null,row:null,cell:false};
+function renderTable(){
+  var cs=CHIPS.filter(function(c){return SHOWN[c.id]});
+  var t=$('#tbl');var h='<thead><tr><th class="rowh">Critère</th>';
+  cs.forEach(function(c){h+='<th id="col-'+c.id+'" data-c="'+c.id+'">'+c.n+'<button class="sm" type="button" data-v="'+c.id+'">variantes</button><button class="sm" type="button" data-b="'+c.id+'">cartes</button></th>'});
+  h+='</tr></thead><tbody>';
+  ROWS.forEach(function(r,i){
+    if(r[0]==='g'){h+='<tr class="gh"><td colspan="'+(cs.length+1)+'">'+r[1]+'</td></tr>';return}
+    h+='<tr data-r="'+i+'"><th class="rowh" data-r="'+i+'">'+r[0]+'</th>';
+    cs.forEach(function(c){var v=r[1](c);h+='<td data-c="'+c.id+'" data-r="'+i+'" class="'+cls(v)+(r[2]?' '+r[2]:'')+'">'+v+'</td>'});
+    h+='</tr>';
+  });
+  t.innerHTML=h+'</tbody>';
+  $$('button[data-v]',t).forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();gotoVars(b.getAttribute('data-v'))})});
+  $$('button[data-b]',t).forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();gotoBoards(b.getAttribute('data-b'))})});
+  $$('thead th[data-c]',t).forEach(function(th){th.addEventListener('click',function(){SEL={col:SEL.col===th.getAttribute('data-c')?null:th.getAttribute('data-c'),row:null,cell:false};applySel()})});
+  $$('tbody th.rowh[data-r]',t).forEach(function(th){th.addEventListener('click',function(){var r=+th.getAttribute('data-r');SEL={col:null,row:SEL.row===r?null:r,cell:false};applySel()})});
+  $$('tbody td[data-c]',t).forEach(function(td){td.addEventListener('click',function(){
+    var c=td.getAttribute('data-c'),r=+td.getAttribute('data-r');
+    if(SEL.cell&&SEL.col===c&&SEL.row===r)SEL={col:null,row:null,cell:false};else SEL={col:c,row:r,cell:true};
+    applySel()})});
+  applySel();
+}
+function applySel(){
+  var t=$('#tbl');
+  $$('.selcol,.selrow,.selcell',t).forEach(function(e){e.classList.remove('selcol','selrow','selcell')});
+  if(SEL.col)$$('[data-c="'+SEL.col+'"]',t).forEach(function(e){e.classList.add('selcol')});
+  if(SEL.row!=null){$$('tr[data-r="'+SEL.row+'"]',t).forEach(function(e){e.classList.add('selrow')})}
+  if(SEL.cell&&SEL.col&&SEL.row!=null){var c=$('td[data-c="'+SEL.col+'"][data-r="'+SEL.row+'"]',t);if(c)c.classList.add('selcell')}
+  var info=$('#selinfo');info.innerHTML='';
+  if(SEL.col||SEL.row!=null){
+    var s='Sélection :';
+    if(SEL.col)s+=' puce <b class="mono">'+BYID[SEL.col].n+'</b>';
+    if(SEL.row!=null)s+=(SEL.col?' · ':' ')+'ligne <b>'+ROWS[SEL.row][0]+'</b>';
+    var sp=el('span','',s);info.appendChild(sp);
+    if(SEL.cell){var cv=ROWS[SEL.row][1](BYID[SEL.col]);info.appendChild(el('span','','→ <b>'+cv+'</b>'))}
+    var b=el('button','btn','Effacer la sélection');b.type='button';b.addEventListener('click',function(){SEL={col:null,row:null,cell:false};applySel()});info.appendChild(b);
+  }else{info.appendChild(el('span','sub','Cliquez une colonne, une ligne ou une case pour la mettre en évidence.'))}
+}
+function gotoChip(id){
+  SHOWN[id]=true;SEL={col:id,row:null,cell:false};
+  renderPick();renderTable();showTab('chips');
+  var th=document.getElementById('col-'+id);
+  if(th){var w=$('#p-chips .tablewrap');w.scrollTop=0;w.scrollLeft=Math.max(0,th.offsetLeft-130)}
+}
+
+/* ---------- variantes ---------- */
+function fillChipSelect(sel){
+  sel.innerHTML='<option value="">Toutes les puces</option>';
+  CHIPS.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.n;sel.appendChild(o)});
+}
+function renderVars(){
+  var chip=$('#v-chip').value,kind=$('#v-kind').value,q=$('#v-q').value.trim().toLowerCase();
+  var rows=VARS.filter(function(r){
+    if(chip&&r[1]!==chip)return false;
+    if(kind&&r[2]!==kind)return false;
+    if(q&&(r.join(' ').toLowerCase().indexOf(q)<0))return false;
+    return true;
+  });
+  $('#vcount').textContent=rows.length+' référence'+(rows.length>1?'s':'')+' sur '+VARS.length;
+  var h='<thead><tr><th>Référence</th><th>Puce</th><th>Type</th><th>Flash</th><th>PSRAM</th><th>Antenne</th><th>Remarque</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    h+='<tr><td>'+esc(r[0])+'</td><td>'+SHORT[r[1]]+'</td><td><span class="kind '+r[2]+'">'+(r[2]==='sip'?'SiP':r[2]==='puce'?'Puce':'Module')+'</span></td><td>'+esc(r[3])+'</td><td>'+esc(r[4])+'</td><td>'+esc(r[5])+'</td><td class="note">'+esc(r[6])+'</td></tr>';
+  });
+  $('#vtbl').innerHTML=h+'</tbody>';
+}
+['#v-chip','#v-kind'].forEach(function(s){$(s).addEventListener('change',renderVars)});
+$('#v-q').addEventListener('input',renderVars);
+function gotoVars(id){$('#v-chip').value=id;$('#v-kind').value='';$('#v-q').value='';renderVars();showTab('vars')}
+
+function gotoBoards(id){exploreQ(SHORT[id]||id)}
+function gotoBoardsQ(name){exploreQ(name)}
+
+
+var CATS={"ard": "Arduino officiel", "rp": "Raspberry Pi Pico / RP2040-RP2350", "stm": "STM32 (ST)", "nrf": "Nordic / BLE / Thread / Zigbee", "teensy": "Teensy / NXP / hautes perfs MCU", "mcu": "Autres microcontrôleurs", "rpi": "Raspberry Pi (Linux)", "sbc": "Mini-PC Linux (SBC) ARM", "rv": "Linux / MCU RISC-V", "ai": "IA / vision / accélérateurs", "fpga": "FPGA / CPLD", "lora": "LoRa / Meshtastic / sub-GHz", "pen": "Portables / pentest / radio", "wear": "Tout-en-un (écran, montre, batterie)", "ind": "Industriel / PLC / réseau", "oth": "Autres", "esp": "Espressif (ESP)"};
+/* [nom, fabricant, cat, puce, cœur/MHz, RAM, stockage, radio, E/S, USB, logiciel, remarque, gpio, tension, format] */
+var ALL=[
+["Arduino Uno R3", "Arduino", "ard", "ATmega328P", "AVR 8 bits 16 MHz", "2 KB", "32 KB flash", "—", "14 num. (6 PWM) + 6 analog, 5 V", "USB-B via ATmega16U2", "Arduino C++", "Référence débutant, logique 5 V, pas de radio", 20, "5", "std"],
+["Arduino Uno R4 Minima", "Arduino", "ard", "Renesas RA4M1", "Cortex-M4 48 MHz", "32 KB", "256 KB flash", "—", "14 num. + 6 analog, 5 V, DAC 12 bits", "USB-C natif", "Arduino C++", "Successeur de l'Uno R3 (format identique)", 20, "5", "std"],
+["Arduino Uno R4 WiFi", "Arduino", "ard", "Renesas RA4M1 + ESP32-S3", "M4 48 MHz + S3", "32 KB + 512 KB (S3)", "256 KB flash", "Wi-Fi 4 + BLE 5 (ESP32-S3-MINI)", "Format Uno, matrice LED 12×8, Qwiic", "USB-C natif", "Arduino C++", "Uno + radio ; le S3 sert de modem", 20, "5", "std"],
+["Arduino UNO Q", "Arduino (Qualcomm)", "ard", "Qualcomm Dragonwing QRB2210 + STM32U585", "Linux 4×A53 2 GHz + M33 160 MHz", "2 ou 4 GB (côté Linux) + 786 KB", "16 ou 32 GB eMMC", "Wi-Fi 5 + BT 5.1", "Format Uno, matrice LED, Qwiic", "USB-C", "Debian + Arduino + Python (App Lab)", "Carte double : Linux + temps réel sur format Uno (annoncée 2025)", 20, "3.3", "std"],
+["Arduino Mega 2560 Rev3", "Arduino", "ard", "ATmega2560", "AVR 16 MHz", "8 KB", "256 KB flash", "—", "54 num. (15 PWM) + 16 analog, 4 UART, 5 V", "USB-B", "Arduino C++", "Beaucoup de broches ; imprimantes 3D anciennes", 70, "5", "large"],
+["Arduino Leonardo", "Arduino", "ard", "ATmega32U4", "AVR 16 MHz", "2,5 KB", "32 KB", "—", "20 E/S, 5 V", "USB-B natif (clavier/souris)", "Arduino C++", "Peut se comporter en clavier USB (HID)", 20, "5", "std"],
+["Arduino Nano (classique)", "Arduino", "ard", "ATmega328P", "AVR 16 MHz", "2 KB", "32 KB", "—", "22 E/S, 5 V", "Mini-USB (CH340 sur clones)", "Arduino C++", "Très répandu, breadboard", 22, "5", "mini"],
+["Arduino Nano Every", "Arduino", "ard", "ATMega4809", "AVR 20 MHz", "6 KB", "48 KB", "—", "22 E/S, 5 V", "Micro-USB", "Arduino C++", "Nano amélioré", 22, "5", "mini"],
+["Arduino Nano R4", "Arduino", "ard", "Renesas RA4M1", "Cortex-M4 48 MHz", "32 KB", "256 KB", "—", "Format Nano, 5 V tolérant selon broche, DAC", "USB-C", "Arduino C++", "Nano moderne (HID, CAN) ; données à confirmer", 22, "5", "mini"],
+["Arduino Nano 33 BLE / BLE Sense Rev2", "Arduino", "ard", "Nordic nRF52840", "Cortex-M4F 64 MHz", "256 KB", "1 MB flash", "BLE 5", "Format Nano 3,3 V, capteurs IMU/température/micro (Sense)", "Micro-USB natif", "Arduino C++, MicroPython", "BLE + capteurs, TinyML", 22, "3.3", "mini"],
+["Arduino Nano ESP32", "Arduino", "ard", "ESP32-S3 (u-blox NORA-W106)", "2×LX7 240 MHz", "512 KB + 8 MB PSRAM", "16 MB flash", "Wi-Fi 4 + BLE 5", "Format Nano 3,3 V", "USB-C natif", "Arduino C++, MicroPython", "Voir onglet ESP", 22, "3.3", "mini"],
+["Arduino Nano Matter", "Arduino (SparkFun/SiLabs)", "ard", "Silicon Labs MGM240S (EFR32MG24)", "Cortex-M33 78 MHz", "256 KB", "1,5 MB flash", "BLE 5.3 + Thread + Matter", "Format Nano 3,3 V", "USB-C", "Arduino C++", "Maison connectée Matter / Thread", 22, "3.3", "mini"],
+["Arduino Nano RP2040 Connect", "Arduino", "ard", "RP2040 + u-blox NINA-W102", "2×M0+ 133 MHz", "264 KB", "16 MB flash", "Wi-Fi 4 + BLE (NINA)", "Format Nano 3,3 V, IMU, micro", "Micro-USB", "Arduino C++, MicroPython", "—", 22, "3.3", "mini"],
+["Arduino MKR WiFi 1010", "Arduino", "ard", "SAMD21 + NINA-W102", "M0+ 48 MHz", "32 KB", "256 KB", "Wi-Fi 4 + BLE", "8 num., 7 analog, format MKR", "Micro-USB", "Arduino C++", "Ancienne gamme MKR (IoT)", 22, "3.3", "mini"],
+["Arduino Zero", "Arduino", "ard", "SAMD21", "M0+ 48 MHz", "32 KB", "256 KB", "—", "20 E/S, débogueur EDBG", "Micro-USB ×2", "Arduino C++", "Ancien", 20, "3.3", "std"],
+["Arduino Due", "Arduino", "ard", "Atmel SAM3X8E", "Cortex-M3 84 MHz", "96 KB", "512 KB", "—", "54 num., 12 analog, 3,3 V ! (pas 5 V)", "Micro-USB ×2", "Arduino C++", "Ancien, 3,3 V seulement", 54, "3.3", "large"],
+["Arduino GIGA R1 WiFi", "Arduino", "ard", "STM32H747XI", "M7 480 MHz + M4 240 MHz", "1 MB + 8 MB SDRAM", "2 MB flash + 16 MB QSPI", "Wi-Fi 4 + BLE 5 (Murata 1DX)", "76 E/S, USB host, caméra, écran, DAC/ADC", "USB-C + USB-A host", "Arduino C++, MicroPython", "Format Mega, gros projets (3,3 V)", 76, "3.3", "large"],
+["Arduino Portenta H7", "Arduino", "ard", "STM32H747", "M7 480 MHz + M4 240 MHz", "1 MB + 8 MB SDRAM", "2 MB + 16 MB", "Wi-Fi 4 + BLE (Murata)", "High-density connectors, Ethernet PHY, MIPI", "USB-C", "Arduino C++, MicroPython, Zephyr", "Pro / industriel ; gamme Pro", 80, "3.3", "mod"],
+["Arduino Portenta C33", "Arduino", "ard", "Renesas RA6M5", "Cortex-M33 200 MHz", "512 KB", "2 MB + 16 MB QSPI", "Wi-Fi 4 + BLE 5", "Connecteurs haute densité, Ethernet, CAN", "USB-C", "Arduino C++, Zephyr", "Version abordable de la Portenta", 80, "3.3", "mod"],
+["Arduino Portenta X8", "Arduino", "ard", "NXP i.MX 8M Mini + STM32H747", "4×A53 1,8 GHz + M4 + M7", "2 GB", "16 GB eMMC", "Wi-Fi 5 + BT 5.1", "Connecteurs haute densité", "USB-C", "Linux (Yocto) + Arduino", "Linux industriel", 80, "3.3", "mod"],
+["Arduino Nicla Vision", "Arduino", "ard", "STM32H747AII6", "M7 480 MHz + M4", "1 MB + 2 MB", "2 MB flash + 16 MB QSPI", "Wi-Fi + BLE", "Caméra 2 MP, ToF, IMU, micro", "Micro-USB", "MicroPython, Arduino C++", "Vision embarquée (petit format)", 14, "3.3", "mini"],
+["Arduino Nicla Sense ME", "Arduino", "ard", "nRF52832", "M4F 64 MHz", "64 KB", "512 KB", "BLE 5", "Capteurs Bosch (T, humidité, gaz, IMU, pression)", "Micro-USB", "Arduino C++", "Capteurs ; format Nicla", 14, "3.3", "mini"],
+["Arduino Opta", "Arduino (Finder)", "ard", "STM32H747XI", "M7 480 MHz + M4", "1 MB", "2 MB", "Wi-Fi + BLE (selon version) , RS-485, Ethernet", "8 E/S, 4 relais, DIN", "USB-C", "Arduino C++, CODESYS, IEC 61131", "Micro-automate (PLC) sur rail DIN", 8, "24", "din"],
+["Arduino Alvik", "Arduino", "ard", "ESP32 + STM32", "—", "—", "—", "Wi-Fi/BLE", "Robot éducatif", "USB-C", "MicroPython, Arduino", "Robot éducatif complet", null, "3.3", "large"],
+["Raspberry Pi Pico", "Raspberry Pi", "rp", "RP2040", "2×Cortex-M0+ 133 MHz", "264 KB", "2 MB flash", "—", "26 GPIO, 3 ADC 12 bits, 2 UART/SPI/I²C, 8 PIO", "Micro-USB natif", "MicroPython, CircuitPython, C/C++, Arduino", "Débutant très bien documenté ; PIO pour protocoles sur mesure", 26, "3.3", "mini"],
+["Raspberry Pi Pico W / WH", "Raspberry Pi", "rp", "RP2040 + Infineon CYW43439", "2×M0+ 133 MHz", "264 KB", "2 MB", "Wi-Fi 4 + BLE 5.2", "26 GPIO (3 pris par le radio)", "Micro-USB", "Idem", "Pico + radio (jusqu'au 2.4 GHz)", 26, "3.3", "mini"],
+["Raspberry Pi Pico 2", "Raspberry Pi", "rp", "RP2350", "2×M33 ou 2×Hazard3 RISC-V 150 MHz", "520 KB", "4 MB", "—", "26 GPIO, 3 ADC, 3 PIO, sécurité TrustZone, OTP", "Micro-USB", "MicroPython, C/C++, Arduino", "Successeur du Pico (2024)", 26, "3.3", "mini"],
+["Raspberry Pi Pico 2 W", "Raspberry Pi", "rp", "RP2350 + CYW43439", "Idem", "520 KB", "4 MB", "Wi-Fi 4 + BLE 5.2", "Idem", "Micro-USB", "Idem", "Version radio (2024)", 26, "3.3", "mini"],
+["Pimoroni Pico Plus 2 / Plus 2 W", "Pimoroni", "rp", "RP2350B", "2×M33 150 MHz", "520 KB + 8 MB PSRAM", "16 MB", "— / Wi-Fi + BLE", "48 GPIO (RP2350B)", "USB-C", "MicroPython, C/C++", "Plus de RAM, plus de broches", 30, "3.3", "mini"],
+["Pimoroni Tiny 2350", "Pimoroni", "rp", "RP2350A", "2×M33", "520 KB", "8 MB", "—", "Très petit", "USB-C", "MicroPython", "Mini", 18, "3.3", "mini"],
+["Adafruit Feather RP2040", "Adafruit", "rp", "RP2040", "2×M0+", "264 KB", "8 MB", "—", "21 GPIO, STEMMA QT, batterie LiPo", "USB-C", "CircuitPython, Arduino", "Format Feather (batterie + chargeur)", 21, "3.3", "std"],
+["Adafruit Feather RP2350", "Adafruit", "rp", "RP2350", "2×M33", "520 KB + PSRAM 8 MB (HSTX version)", "8 MB", "—", "Format Feather, HSTX vidéo", "USB-C", "CircuitPython", "—", 21, "3.3", "std"],
+["Adafruit Metro RP2350", "Adafruit", "rp", "RP2350B", "2×M33", "520 KB + 8 MB PSRAM", "16 MB", "—", "Format Uno, HSTX DVI, SD", "USB-C", "CircuitPython", "Format Arduino Uno en RP2350", 30, "3.3", "std"],
+["Adafruit QT Py RP2040", "Adafruit", "rp", "RP2040", "2×M0+", "264 KB", "8 MB", "—", "Mini, STEMMA QT", "USB-C", "CircuitPython", "Très petit", 11, "3.3", "mini"],
+["Seeed XIAO RP2040", "Seeed", "rp", "RP2040", "2×M0+", "264 KB", "2 MB", "—", "11 GPIO, 21×17,8 mm", "USB-C", "MicroPython, Arduino", "Mini", 11, "3.3", "mini"],
+["Seeed XIAO RP2350", "Seeed", "rp", "RP2350", "2×M33", "520 KB", "2 MB", "—", "19 GPIO", "USB-C", "MicroPython", "Mini RP2350", 19, "3.3", "mini"],
+["SparkFun Thing Plus RP2040", "SparkFun", "rp", "RP2040", "2×M0+", "264 KB", "16 MB", "—", "Format Feather, Qwiic, microSD, LiPo", "USB-C", "Idem", "—", 21, "3.3", "std"],
+["SparkFun Pro Micro RP2350", "SparkFun", "rp", "RP2350", "2×M33", "520 KB", "16 MB", "—", "Format Pro Micro", "USB-C", "Idem", "—", 18, "3.3", "mini"],
+["Waveshare RP2040-Zero / RP2350-Zero", "Waveshare", "rp", "RP2040 / RP2350", "2 cœurs", "264 / 520 KB", "2 / 4 MB", "—", "20 GPIO, LED RGB, mini", "USB-C", "Idem", "Très répandu, très petit", 20, "3.3", "mini"],
+["Waveshare RP2040/RP2350 Touch LCD / ETH etc.", "Waveshare", "rp", "RP2040 / RP2350", "2 cœurs", "—", "—", "—", "Écran, Ethernet W5500, LoRa… (nombreuses variantes)", "USB-C", "Idem", "Variantes à écran/réseau", null, "3.3", "std"],
+["WIZnet W5500-EVB-Pico / W6100", "WIZnet", "rp", "RP2040 + W5500", "2×M0+", "264 KB", "2 MB", "Ethernet 10/100", "Format Pico", "Micro-USB", "Idem", "Pico + Ethernet filaire", 26, "3.3", "mini"],
+["Pimoroni Pico LiPo / Tiny 2040", "Pimoroni", "rp", "RP2040", "2×M0+", "264 KB", "4/16 MB", "—", "Chargeur batterie, Qw/ST", "USB-C", "Idem", "—", 26, "3.3", "mini"],
+["Blue Pill (STM32F103C8T6)", "Communauté", "stm", "STM32F103", "Cortex-M3 72 MHz", "20 KB", "64 KB (souvent 128)", "—", "32 E/S, 3,3 V (certaines 5 V tolérantes), CAN", "Micro-USB natif", "Arduino (STM32duino), C", "Beaucoup de contrefaçons (clones CKS/GD32) ; démarrage bootloader à graver", 32, "3.3", "mini"],
+["Black Pill (F401/F411)", "Communauté (WeAct)", "stm", "STM32F401CC / F411CE", "Cortex-M4F 84 / 100 MHz", "64 / 128 KB", "256 / 512 KB", "—", "32 E/S, USB natif, SPI/I²C", "USB-C natif", "Arduino (STM32duino), C", "Bon rapport capacité/format", 32, "3.3", "mini"],
+["Nucleo-32 (L432KC, G431KB…)", "ST", "stm", "STM32L4/G4/F0/…", "M0 à M4F", "—", "—", "—", "Format Nano, ST-LINK intégré", "Micro-USB", "Mbed, Arduino, Zephyr, C", "Débogueur ST-LINK intégré gratuit", 22, "3.3", "mini"],
+["Nucleo-64 (F401RE, F411RE, F446RE, L476RG, G474RE…)", "ST", "stm", "STM32 (nombreux)", "M0+ à M4F, 32–180 MHz", "—", "—", "—", "Connecteurs Arduino Uno + Morpho, ST-LINK", "Micro-USB", "Mbed, Arduino, Zephyr, C", "Très bon point d'entrée STM32", 76, "3.3", "std"],
+["Nucleo-144 (F429ZI, F767ZI, H743ZI, H563ZI…)", "ST", "stm", "STM32 haut de gamme", "M4F/M7/M33 jusqu'à 480 MHz", "—", "—", "—", "Ethernet, USB, Morpho, ST-LINK", "Micro-USB", "Mbed, Zephyr, C", "Haut débit, Ethernet", 100, "3.3", "large"],
+["Nucleo-WB55", "ST", "stm", "STM32WB55", "M4F 64 MHz + M0+ (radio)", "256 KB", "1 MB", "BLE 5 + 802.15.4 (Thread/Zigbee)", "Format Uno, USB dongle dispo", "Micro-USB", "C, Zephyr", "Pile radio sur le M0+", 40, "3.3", "std"],
+["Nucleo-WL55JC", "ST", "stm", "STM32WL55", "M4 48 MHz + M0+", "64 KB", "256 KB", "LoRa + sub-GHz (150–960 MHz)", "Format Uno", "Micro-USB", "C, Zephyr", "LoRa dans un seul circuit", 40, "3.3", "std"],
+["Nucleo-U575 / U385 / U5A5", "ST", "stm", "STM32U5", "M33 160 MHz", "786 KB – 2,5 MB", "2 MB", "—", "Très basse consommation, sécurité TrustZone", "Micro-USB", "Zephyr, C", "Très basse conso", 76, "3.3", "std"],
+["Discovery STM32F4 / F7 / H7", "ST", "stm", "STM32F407 / F746 / H747", "M4F / M7 + écran", "192 KB – 1 MB", "1–2 MB", "—", "Écran tactile, audio, MEMS", "Micro-USB", "C", "Cartes d'évaluation", 50, "3.3", "large"],
+["STM32N6 Discovery / Nucleo-N657", "ST", "stm", "STM32N6", "Cortex-M55 800 MHz + NPU 600 GOPS", "4,2 MB", "externe (OctoSPI)", "—", "Caméra MIPI, écran", "USB-C", "ST Edge AI", "IA embarquée (MCU) ; nouveauté 2025", null, "3.3", "large"],
+["STM32MP135 / MP157 Discovery", "ST", "stm", "STM32MP1", "1–2×A7 + M4", "512 MB DDR", "SD", "Wi-Fi/BT", "Écran, Ethernet", "USB", "Linux (OpenSTLinux) + Zephyr", "Linux industriel", 40, "3.3", "large"],
+["nRF52840 DK (PCA10056)", "Nordic", "nrf", "nRF52840", "M4F 64 MHz", "256 KB", "1 MB", "BLE 5, Thread, Zigbee, ANT, NFC", "48 GPIO, J-Link OB", "2× Micro-USB (natif, J2 cible + J3 débogueur)", "Zephyr (nRF Connect SDK), Arduino", "Référence BLE / Thread / Zigbee", 48, "3.3", "std"],
+["nRF52840 Dongle", "Nordic", "nrf", "nRF52840", "M4F", "256 KB", "1 MB", "BLE 5, Thread, Zigbee, 802.15.4", "15 broches", "USB-A dongle natif", "Zephyr", "Sniffer / passerelle ; pas de débogueur", 15, "3.3", "dongle"],
+["nRF5340 DK / Audio DK", "Nordic", "nrf", "nRF5340", "2×M33 (128 + 64 MHz)", "512 KB + 64 KB", "1 MB + 256 KB", "BLE 5.3, Thread, Zigbee, Matter, LE Audio", "48 GPIO", "USB", "Zephyr", "Double cœur, audio LE", 48, "3.3", "std"],
+["nRF54L15 DK", "Nordic", "nrf", "nRF54L15", "M33 128 MHz + RISC-V (cœur FLPR)", "256 KB", "1,5 MB", "BLE 6.0, Thread, Zigbee, Matter", "Basse conso", "USB-C", "Zephyr", "Nouvelle génération 2025", 32, "3.3", "std"],
+["nRF9160 / nRF9151 / nRF91xx DK", "Nordic", "nrf", "nRF9160 / nRF9151", "M33 64 MHz", "256 KB", "1 MB", "LTE-M / NB-IoT + GNSS", "—", "USB", "Zephyr", "Cellulaire IoT", null, "3.3", "std"],
+["Thingy:52 / Thingy:53 / Thingy:91", "Nordic", "nrf", "nRF52832 / nRF5340 / nRF9160", "—", "—", "—", "BLE / Thread / LTE-M", "Capteurs, batterie, boîtier", "USB-C", "Zephyr", "Prototype produit sans soudure", null, "3.3", "prop"],
+["Adafruit Feather nRF52840 Express / Sense", "Adafruit", "nrf", "nRF52840", "M4F", "256 KB", "1 MB + 2 MB QSPI", "BLE 5", "Format Feather, LiPo", "USB-C", "CircuitPython, Arduino", "—", 21, "3.3", "std"],
+["Seeed XIAO nRF52840 / Sense", "Seeed", "nrf", "nRF52840", "M4F", "256 KB", "1 MB + 2 MB", "BLE 5", "11 GPIO", "USB-C", "Arduino, Zephyr", "Mini BLE", 11, "3.3", "mini"],
+["Seeed XIAO MG24 / Sense", "Seeed", "nrf", "Silicon Labs MG24", "M33 78 MHz", "256 KB", "1,5 MB", "BLE 5.3 + Thread + Zigbee + Matter", "—", "USB-C", "Arduino, Silicon Labs", "Matter", 11, "3.3", "mini"],
+["SparkFun Thing Plus Matter MGM240P", "SparkFun", "nrf", "Silicon Labs MGM240P", "M33 78 MHz", "256 KB", "1,5 MB", "BLE + Thread + Zigbee + Matter", "Format Feather", "USB-C", "Arduino", "—", 21, "3.3", "std"],
+["Silicon Labs EFR32 / Thunderboard / xG24 Explorer", "Silicon Labs", "nrf", "EFR32MG24 / BG22", "M33 / M33", "—", "—", "BLE, Zigbee, Thread, Matter", "Capteurs", "USB", "Simplicity Studio", "—", null, "3.3", "std"],
+["Texas Instruments LaunchPad (CC1352R, CC2652, MSP430, C2000)", "TI", "nrf", "CC13xx/26xx, MSP430, MSP-EXP432", "M4F / M0+ / 16 bits", "—", "—", "Sub-GHz, BLE, Zigbee, Thread", "Débogueur XDS110 intégré", "USB", "Code Composer / Zephyr", "Large catalogue TI", 40, "3.3", "std"],
+["Teensy 4.0", "PJRC", "teensy", "NXP i.MXRT1062", "Cortex-M7 600 MHz", "1 MB", "2 MB flash", "—", "40 E/S, 3,3 V, audio I²S, USB 2.0 480 Mb/s", "Micro-USB natif (host dispo)", "Arduino (Teensyduino), C", "Le plus rapide des MCU de makers", 40, "3.3", "mini"],
+["Teensy 4.1", "PJRC", "teensy", "NXP i.MXRT1062", "Cortex-M7 600 MHz", "1 MB (+ 16 MB PSRAM optionnel)", "8 MB flash + SD", "— (Ethernet 10/100 avec prise)", "55 E/S, 2 USB (device + host)", "Micro-USB + USB host", "Arduino, C", "Audio, USB, vidéo, flux élevé", 55, "3.3", "std"],
+["Teensy 3.2 / 3.5 / 3.6", "PJRC", "teensy", "Kinetis K20 / K64 / K66", "M4 72–180 MHz", "64–256 KB", "256 KB – 1 MB", "—", "34–64 E/S", "Micro-USB", "Arduino", "Anciens", 34, "3.3", "mini"],
+["Teensy LC", "PJRC", "teensy", "Kinetis KL26", "M0+ 48 MHz", "8 KB", "62 KB", "—", "27 E/S", "Micro-USB", "Arduino", "Ancien", 27, "3.3", "mini"],
+["NXP i.MX RT1050/1060/1170 EVK", "NXP", "teensy", "i.MX RT", "M7 600 MHz – 1 GHz", "1–2 MB", "externe", "—", "Écran, caméra, Ethernet", "USB", "MCUXpresso, Zephyr", "Crossover à haute vitesse", 60, "3.3", "large"],
+["NXP FRDM (K64F, RW612, MCXN947, i.MX93…)", "NXP", "teensy", "Kinetis / MCX / i.MX", "M4 à A55", "—", "—", "Selon version (RW612 : Wi-Fi 6 + BLE + 802.15.4)", "Format Arduino", "USB", "MCUXpresso, Zephyr", "Plateformes d'évaluation NXP", 40, "3.3", "std"],
+["Renesas EK-RA / FPB / RZ boards", "Renesas", "teensy", "RA4M1, RA6M5, RZ/G2L…", "M4/M33/A55", "—", "—", "Selon version", "—", "USB", "FSP, Zephyr, Linux", "—", 40, "3.3", "std"],
+["Microchip Curiosity (SAM, PIC32, AVR-DA, AVR-DB, PIC)", "Microchip", "mcu", "SAMD21/E54/PIC/AVR", "8 bits à M7", "—", "—", "—", "Débogueur intégré", "USB", "MPLAB, Arduino", "Large gamme 8-bit (PIC) et 32-bit", 40, "3.3/5", "std"],
+["Digispark ATtiny85", "Digistump", "mcu", "ATtiny85", "AVR 16 MHz", "512 B", "8 KB (6 utilisables)", "—", "5–6 E/S", "USB-A direct (bootloader V-USB)", "Arduino C++", "Le moins cher / USB clavier BadUSB", 6, "5", "mini"],
+["Pro Micro (ATmega32U4)", "SparkFun / clones", "mcu", "ATmega32U4", "AVR 8 MHz 3,3 V / 16 MHz 5 V", "2,5 KB", "32 KB", "—", "18 E/S", "Micro-USB natif (HID)", "Arduino", "Claviers custom, HID", 18, "3.3/5", "mini"],
+["WCH CH32V003 / V203 / V307 (RISC-V pas cher)", "WCH", "mcu", "CH32V003 / V203 / V307 / V006", "RISC-V 48–144 MHz", "2–64 KB", "16–256 KB", "CH32V208 : BLE", "10–50 E/S", "USB natif sur certains", "MounRiver, Arduino (core)", "RISC-V très bas prix (CH32V003 ≈ 8-bit class)", 20, "3.3/5", "mini"],
+["Adafruit Feather M0 / M4 (SAMD21 / SAMD51)", "Adafruit", "mcu", "SAMD21 / SAMD51", "M0+ 48 / M4F 120 MHz", "32 / 192 KB", "256 KB / 512 KB", "Selon version (LoRa, WiFi, BLE)", "Format Feather", "Micro-USB / USB-C", "CircuitPython, Arduino", "Écosystème Adafruit complet", 20, "3.3", "std"],
+["Adafruit ItsyBitsy / QT Py / Trinket", "Adafruit", "mcu", "SAMD21 / ATmega / RP2040 / ESP32", "—", "—", "—", "—", "Très petits formats", "USB", "CircuitPython", "—", 20, "3.3/5", "mini"],
+["Adafruit Circuit Playground Express", "Adafruit", "mcu", "SAMD21", "M0+ 48 MHz", "32 KB", "2 MB", "—", "NeoPixels, capteurs, haut-parleur", "Micro-USB", "MakeCode, CircuitPython", "Éducation", 8, "3.3", "std"],
+["BBC micro:bit V2", "Micro:bit Foundation", "mcu", "Nordic nRF52833", "M4F 64 MHz", "128 KB", "512 KB", "BLE 5.1, 2,4 GHz radio", "25 LED, 5 broches larges + connecteur, haut-parleur, micro", "Micro-USB", "MakeCode, MicroPython", "Éducation / initiation", 19, "3.3", "std"],
+["BBC micro:bit V1", "Micro:bit Foundation", "mcu", "nRF51822", "M0 16 MHz", "16 KB", "256 KB", "BLE 4", "25 LED", "Micro-USB", "MakeCode", "Ancien, remplacé par V2", 19, "3.3", "std"],
+["Sipeed Longan Nano", "Sipeed", "mcu", "GD32VF103", "RISC-V 108 MHz", "32 KB", "128 KB", "—", "Écran, TF", "USB-C", "Platform.io", "—", 24, "3.3", "mini"],
+["PineCone / Ox64 (Pine64) BL602/BL808", "Pine64 / Bouffalo", "mcu", "BL602 / BL808", "RISC-V", "—", "—", "Wi-Fi + BLE", "—", "USB", "C, Linux (BL808)", "—", 20, "3.3", "mini"],
+["Realtek Ameba (BW16, RTL8720DN / RTL8722DM)", "AI-Thinker", "mcu", "RTL8720DN", "2 cœurs M4F + KM0", "—", "—", "Wi-Fi 5 GHz + BLE", "—", "—", "Arduino", "Wi-Fi 5 GHz bon marché", 20, "3.3", "mini"],
+["Wio Terminal", "Seeed", "mcu", "ATSAMD51P19 + RTL8720DN", "M4F 120 MHz", "192 KB", "4 MB", "Wi-Fi 5 GHz + BLE", "Écran 2,4″, accéléromètre, micro, port GPIO Raspberry", "USB-C", "Arduino, CircuitPython", "Tout-en-un", 40, "3.3", "large"],
+["Parallax Propeller 2 Edge", "Parallax", "mcu", "P2X8C4M64P", "8 cœurs 180 MHz", "512 KB", "Flash externe", "—", "64 E/S intelligentes", "USB", "Spin2, C", "Architecture à 8 cœurs ; niche", 64, "3.3", "std"],
+["Cypress PSoC 6 / 4", "Infineon", "mcu", "PSoC 6", "M4 + M0+", "—", "—", "BLE (4)", "CapSense, analogique reconfigurable", "USB", "ModusToolbox", "—", 40, "3.3/5", "std"],
+["Kendryte K210 (Maix Bit / Dock / Go)", "Sipeed", "ai", "K210", "2×RISC-V 400 MHz + KPU", "8 MB", "16 MB", "—", "Caméra, LCD", "USB-C", "MaixPy (MicroPython)", "Vision pas chère (ancien)", 40, "3.3", "std"],
+["Raspberry Pi Zero W / Zero 2 W", "Raspberry Pi", "rpi", "BCM2835 / RP3A0 (A53)", "1×1 GHz / 4×1 GHz", "512 MB", "microSD", "Wi-Fi 4 + BLE 4.2", "40 broches (non soudées), mini-HDMI", "micro-USB OTG", "Raspberry Pi OS, Linux", "Très compact", 28, "3.3", "mini"],
+["Raspberry Pi 3 Model B+", "Raspberry Pi", "rpi", "BCM2837B0", "4×A53 1,4 GHz", "1 GB", "microSD", "Wi-Fi 5 GHz, BT 4.2, Ethernet gigabit (USB2)", "40 GPIO", "4×USB 2", "Linux", "Ancien, encore courant", 28, "3.3", "sbc"],
+["Raspberry Pi 4 Model B", "Raspberry Pi", "rpi", "BCM2711", "4×A72 1,5 GHz", "1 / 2 / 4 / 8 GB", "microSD", "Wi-Fi 5, BT 5, Ethernet gigabit", "40 GPIO, 2×micro-HDMI, CSI/DSI", "2×USB 3 + 2×USB 2, USB-C", "Linux", "Le plus courant", 28, "3.3", "sbc"],
+["Raspberry Pi 400 / 500 / 500+", "Raspberry Pi", "rpi", "BCM2711 / BCM2712", "4×A72 / 4×A76", "4 / 8 GB", "microSD / SSD (500+)", "Wi-Fi 5, BT 5, gigabit", "40 GPIO sur le côté", "USB 3", "Linux", "Ordinateur dans un clavier", 28, "3.3", "sbc"],
+["Raspberry Pi 5", "Raspberry Pi", "rpi", "BCM2712", "4×A76 2,4 GHz", "2 / 4 / 8 / 16 GB", "microSD, PCIe 2.0 ×1 (HAT NVMe)", "Wi-Fi 5, BT 5, gigabit", "40 GPIO, 2×CSI/DSI, RTC, bouton marche", "2×USB 3 + 2×USB 2, USB-C", "Linux", "Le plus puissant ; pas de GPIO 5 V", 28, "3.3", "sbc"],
+["Raspberry Pi CM4 / CM5", "Raspberry Pi", "rpi", "BCM2711 / BCM2712", "4×A72 / 4×A76", "1–16 GB", "eMMC 0–64 GB", "Wi-Fi/BT optionnels, gigabit", "Connecteurs haute densité (carte porteuse)", "—", "Linux", "Module à intégrer dans un produit", 28, "3.3", "mod"],
+["Raspberry Pi AI Kit / AI HAT+ (Hailo-8L / Hailo-8)", "Raspberry Pi + Hailo", "ai", "Hailo-8L (13 TOPS) / Hailo-8 (26 TOPS)", "NPU", "—", "—", "—", "M.2 PCIe sur Pi 5", "PCIe", "Linux + rpicam", "Accélérateur IA pour Pi 5", null, "", "std"],
+["Raspberry Pi AI Camera (Sony IMX500)", "Raspberry Pi", "ai", "Sony IMX500", "NPU intégré au capteur", "—", "—", "—", "CSI", "—", "Linux", "Vision IA sans charger le CPU", null, "", "prop"],
+["Orange Pi 5 / 5 Plus / 5 Pro / 5 Max", "Orange Pi", "sbc", "Rockchip RK3588S / RK3588", "4×A76 + 4×A55 2,4 GHz, NPU 6 TOPS", "4–32 GB", "microSD, eMMC, M.2 NVMe", "Wi-Fi 6 + BT 5 (selon modèle)", "40 pin, HDMI 2.1", "USB 3, USB-C", "Linux (Orange Pi OS, Armbian)", "Équivalent Pi 5+ ; NPU", 28, "3.3", "sbc"],
+["Orange Pi Zero 2W / Zero 3", "Orange Pi", "sbc", "Allwinner H618", "4×A53 1,5 GHz", "1–4 GB", "microSD", "Wi-Fi 5 + BT 5", "Format mini", "USB", "Linux", "Pi Zero alternatif", 28, "3.3", "mini"],
+["Orange Pi 3 LTS / 4 LTS", "Orange Pi", "sbc", "Allwinner H6 / RK3399", "—", "2–4 GB", "eMMC", "Wi-Fi + BT", "—", "—", "Linux", "—", 28, "3.3", "sbc"],
+["Radxa Rock 5B / 5A / 5C / 5 ITX", "Radxa", "sbc", "Rockchip RK3588 / RK3588S / RK3588S2", "4×A76 + 4×A55, NPU 6 TOPS", "4–32 GB", "microSD, eMMC, M.2 NVMe", "Wi-Fi 6 + BT 5.x (selon version)", "40 pin Raspberry Pi", "USB 3, USB-C PD", "Linux (Radxa OS), Android", "Haut de gamme ARM", 28, "3.3", "sbc"],
+["Radxa Rock 4C+ / 3A / 3C / 4SE / 5T", "Radxa", "sbc", "RK3399-T / RK3566 / RK3568", "—", "2–8 GB", "—", "Wi-Fi 5 / 6", "40 pin", "—", "Linux", "Moyen de gamme", 28, "3.3", "sbc"],
+["Radxa Zero 3W / Zero 3E", "Radxa", "sbc", "RK3566", "4×A55 1,6 GHz", "1–8 GB", "microSD / eMMC", "Wi-Fi 6 + BT 5 (3W)", "Format Pi Zero", "USB-C", "Linux", "Pi Zero 2W alternatif", 28, "3.3", "mini"],
+["Radxa X4 / ROCK 5 ITX+", "Radxa", "sbc", "Intel N100", "4×x86 jusqu'à 3,4 GHz", "4–16 GB", "eMMC / M.2", "Wi-Fi 6 + BT 5.2", "40 pin Raspberry Pi", "USB 3, USB-C", "Linux / Windows", "x86 petit format", 28, "3.3", "sbc"],
+["Odroid N2+ / C4 / M1 / M1S / H4+", "Hardkernel", "sbc", "Amlogic S922X / S905X3 / RK3568 / Intel N97", "Variable", "2–16 GB", "eMMC, SATA, M.2", "—", "Connecteur 40 pin / 26 pin, eMMC", "USB 3", "Linux, Android", "Cartes robustes, support long", 28, "3.3", "sbc"],
+["Libre Computer Le Potato (AML-S905X-CC) / Sweet Potato / Renegade / Alta / Solitude / La Frite", "Libre Computer", "sbc", "Amlogic S905X / S905X3 / RK3328 / S905Y2", "4×A53", "2–4 GB", "microSD / eMMC", "—", "40 pin, format Pi", "USB", "Linux, Android", "Compatible format Pi 3 (Le Potato)", 28, "3.3", "sbc"],
+["Khadas VIM1S / VIM3 / VIM4 / Edge2 / Mind", "Khadas", "sbc", "Amlogic S905Y4 / A311D / A311D2, RK3588S", "4×A73 + 2×A53 / 4×A76 + 4×A55", "2–32 GB", "eMMC, M.2", "Wi-Fi 5/6 + BT", "40 pin, NPU 5/6 TOPS", "USB-C", "Linux, Android", "Haute perf + NPU", 28, "3.3", "sbc"],
+["Pine64 Pinebook / Pine A64 / Rock64 / Quartz64 / Star64 / Oz64", "Pine64", "sbc", "Allwinner A64 / RK3328 / RK3566 / JH7110", "—", "1–8 GB", "microSD / eMMC", "—", "40 pin Pi-2 bus", "USB", "Linux", "Matériel ouvert, comm. active", 28, "3.3", "sbc"],
+["PinePhone / PinePhone Pro / PineTab2 / PineNote", "Pine64", "sbc", "A64 / RK3399S / RK3566", "—", "2–4 GB", "eMMC", "Wi-Fi + BT + LTE (téléphone)", "—", "USB-C", "Linux mobile (Mobian, postmarketOS)", "Appareils Linux mobiles", null, "", "prop"],
+["Banana Pi BPI-F3 / M5 Pro / R4 / M7 / BPI-F4", "Banana Pi / Sinovoip", "sbc", "SpacemiT K1 (RISC-V), RK3576, MT7988A, RK3588", "8×X60 RISC-V 1,6 GHz / A72…", "2–16 GB", "eMMC, SATA, NVMe", "Wi-Fi 6 (R4 : routeur, ports 10G SFP)", "40 pin", "USB 3", "Linux", "Routeur / RISC-V", 28, "3.3", "sbc"],
+["Asus Tinker Board 3 / 3N / 2S", "Asus", "sbc", "Rockchip RK3568", "4×A55 2,0 GHz", "2–4 GB", "microSD / eMMC", "Wi-Fi 5", "40 pin", "USB 3", "Linux, Debian", "—", 28, "3.3", "sbc"],
+["LattePanda Mu / Delta 3 / Sigma / V1", "DFRobot", "sbc", "Intel N100 / i5-1340P / Atom", "x86 4–12 cœurs", "8–32 GB", "NVMe / eMMC", "Wi-Fi 6 + BT 5.2", "Coprocesseur Arduino (ATmega32U4/RP2040)", "USB 3", "Windows 11 / Linux", "x86 + MCU Arduino sur la même carte", 28, "3.3", "sbc"],
+["UP Squared / Xtreme / 7000 / UP Board", "AAEON", "sbc", "Intel N / Atom / i7", "x86", "4–32 GB", "eMMC", "Wi-Fi 6", "40 pin Raspberry-compatible", "USB 3", "Windows / Linux", "Industriel x86", 28, "3.3", "sbc"],
+["ASRock NUC / ZimaBoard / ZimaBlade", "IceWhale", "sbc", "Intel N100 / Celeron", "x86", "8 GB", "SATA, M.2", "—", "—", "USB 3", "Linux, Windows", "Serveur domestique / mini NAS", null, "", "sbc"],
+["Rock Pi S / E / X", "Radxa", "sbc", "RK3308 / RK3328 / Atom", "4×A35 / 4×A53", "256–512 MB", "—", "Wi-Fi / Ethernet PoE", "Format minuscule", "USB", "Linux", "Passerelle réseau / audio", 28, "3.3", "sbc"],
+["NanoPi NEO / R5S / R6S / T6 / M4V2", "FriendlyElec", "sbc", "Allwinner H3 / H5 / RK3399 / RK3568 / RK3588S", "—", "512 MB–16 GB", "—", "—", "Ethernet multiples (R-series), boîtier métal", "USB", "Linux, OpenWrt", "Routeurs compacts", null, "3.3", "sbc"],
+["BeagleBone Black / Black Wireless", "BeagleBoard.org", "sbc", "TI AM3358", "1×Cortex-A8 1 GHz + 2×PRU", "512 MB", "eMMC 4 GB", "Wi-Fi (Black Wireless uniquement)", "92 broches, PRU temps réel, TI ADC", "Mini-USB (client)", "Linux (Debian)", "Temps réel (PRU), gros nombre d'E/S", 65, "3.3", "sbc"],
+["BeagleBone AI-64", "BeagleBoard.org", "sbc", "TI TDA4VM", "2×Cortex-A72 2 GHz + 6×Cortex-R5F + 2×C7x DSP", "4 GB", "eMMC 16 GB + microSD", "Ethernet gigabit (Wi-Fi via module M.2 en option)", "Connecteurs compatibles BeagleBone Black, accélérateur IA ~8 TOPS", "USB-C (USB 3.0)", "Linux (Debian)", "Calcul IA en périphérie, compatible écosystème BeagleBone Black", 72, "3.3", "sbc"],
+["BeagleY-AI", "BeagleBoard.org", "sbc", "TI AM67A", "4×Cortex-A53 1,4 GHz + 2×C7x DSP (NPU ~4 TOPS)", "4 GB", "microSD (pas d'eMMC)", "Wi-Fi 6 + BLE 5.4", "Header 40 broches compatible HAT Raspberry Pi, 4× USB-A 3.0, PCIe Gen3 (adaptateur externe)", "USB-C (port périphérique)", "Linux (Debian)", "Calcul IA en périphérie, compatible HAT Raspberry Pi", 40, "3.3", "sbc"],
+["BeagleBoard PocketBeagle / PocketBeagle 2", "BeagleBoard.org", "sbc", "TI AM3358 / AM62", "A8 / 4×A53 + M4F + PRU", "512 MB / 2 GB", "microSD", "—", "72 broches, micro format", "micro-USB (PocketBeagle) / USB-C (PocketBeagle 2)", "Linux", "Le plus petit Beagle", 44, "3.3", "mini"],
+["BeagleConnect Freedom", "BeagleBoard.org", "sbc", "TI CC1352P7", "M4F + sub-GHz", "—", "—", "BLE + 2.4 GHz + sub-GHz", "mikroBUS", "USB-C", "Zephyr", "—", null, "3.3", "dongle"],
+["NVIDIA Jetson Nano (dev kit, ancien)", "NVIDIA", "ai", "Tegra X1", "4×A57 + GPU Maxwell 128 cœurs", "2/4 GB", "microSD", "—", "40 pin", "USB 3", "Linux (JetPack ancien)", "Ancien, 472 GFLOPS", 28, "3.3", "sbc"],
+["NVIDIA Jetson Orin Nano Super Dev Kit", "NVIDIA", "ai", "Orin Nano", "6×A78AE, GPU Ampere 1024 cœurs, 67 TOPS (mode Super)", "8 GB", "NVMe / microSD", "Wi-Fi 6 (module)", "40 pin, 2×CSI", "USB 3 + DP", "Linux (JetPack 6)", "IA / robotique de bord", 28, "3.3", "sbc"],
+["NVIDIA Jetson Orin NX 8/16 GB", "NVIDIA", "ai", "Orin NX", "6–8×A78AE, GPU 1024 cœurs, 70–157 TOPS", "8–16 GB", "NVMe", "—", "Module à carte porteuse", "—", "JetPack", "Module industriel IA", null, "", "mod"],
+["NVIDIA Jetson AGX Orin 32/64 GB", "NVIDIA", "ai", "Orin", "8–12×A78AE, GPU 1792–2048 cœurs, 200–275 TOPS", "32–64 GB", "NVMe / eMMC", "—", "Module haut de gamme", "—", "JetPack", "Robotique avancée", null, "", "mod"],
+["NVIDIA Jetson AGX Thor", "NVIDIA", "ai", "Blackwell", "14×Neoverse V3AE, GPU Blackwell, ~2070 FP4 TFLOPS", "128 GB", "NVMe", "—", "Module robotique humanoïde", "—", "JetPack 7", "Annoncé 2025 ; très haut de gamme", null, "", "mod"],
+["NVIDIA Jetson Xavier NX / AGX Xavier", "NVIDIA", "ai", "Xavier", "6–8×Carmel, GPU Volta", "8–32 GB", "—", "—", "—", "—", "JetPack", "Génération précédente", null, "", "mod"],
+["Google Coral Dev Board / Dev Board Mini / Micro", "Google (Coral)", "ai", "NXP i.MX 8M + Edge TPU / MT8167 / RT1176", "4×A53 + TPU 4 TOPS", "1–4 GB", "eMMC 8 GB", "Wi-Fi + BT", "40 pin", "USB-C", "Mendel Linux, TensorFlow Lite", "Vision TPU (support fortement réduit)", 28, "3.3", "sbc"],
+["Coral USB Accelerator / M.2 / Mini PCIe", "Google (Coral)", "ai", "Edge TPU", "4 TOPS", "—", "—", "—", "—", "USB 3 / PCIe", "TensorFlow Lite", "Ajoute un TPU à un Pi / PC", null, "", "acc"],
+["Hailo-8 / Hailo-8L / Hailo-10H (M.2 / HAT)", "Hailo", "ai", "Hailo-8 (26 TOPS) / 8L (13 TOPS) / 10H (40 TOPS)", "NPU", "—", "—", "—", "M.2 / PCIe", "PCIe", "HailoRT", "Accélérateur pour Pi 5 / x86 / Jetson", null, "", "acc"],
+["Intel Neural Compute Stick 2 (Movidius)", "Intel", "ai", "Myriad X", "VPU", "—", "—", "—", "—", "USB 3", "OpenVINO", "Arrêté (légacy)", null, "", "acc"],
+["Luxonis OAK-D / OAK-D Lite / OAK-D Pro / OAK-1", "Luxonis", "ai", "Myriad X / RVC2 / RVC4", "VPU 4 TOPS, caméras stéréo", "—", "—", "—", "—", "USB-C / PoE", "DepthAI", "Vision 3D IA", null, "", "acc"],
+["OpenMV Cam H7 Plus / RT1062 / N6 / AE3", "OpenMV", "ai", "STM32H743 / i.MX RT1062 / STM32N6 / Alif Ensemble E3", "M7 480 MHz / M55 + NPU", "1 MB + 32 MB SDRAM (H7+) / 1 MB + 32 MB PSRAM / 4,2 MB", "—", "—", "Caméra, SPI/I²C/UART", "Micro-USB / USB-C", "MicroPython", "Vision par micro-contrôleur", 10, "3.3", "mini"],
+["Seeed Grove Vision AI V2 / SenseCAP A1102 / reCamera", "Seeed", "ai", "Himax WiseEye2 HX6538 (M55 + Ethos-U55) / RISC-V (reCamera)", "M55 400 MHz + NPU", "2 MB", "16 MB", "—", "Caméra, Grove", "USB-C", "Edge Impulse, SSCMA", "Vision très basse conso", null, "3.3", "mini"],
+["Sipeed MaixCAM / MaixCAM-Pro / MaixCAM2 / Maix-III / NanoKVM", "Sipeed", "ai", "SG2002 (Sophgo) / AX620A / SG2002", "RISC-V C906 1 GHz + ARM A53 + TPU 1 TOPS", "256 MB", "microSD", "Wi-Fi 6 (MaixCAM) / BT", "Caméra 5 MP, écran, 22 broches", "USB-C", "MaixPy, Linux", "Vision IA, mini", 22, "3.3", "mini"],
+["Luckfox Pico Mini / Pro / Max / Ultra / Pi (RV1103 / RV1106)", "Luckfox", "ai", "Rockchip RV1103 / RV1106", "A7 1,2 GHz + RISC-V + NPU 0,5–1 TOPS", "64–256 MB", "SPI NAND / eMMC / microSD", "Wi-Fi 4 (Ultra W) + Ethernet", "~38 broches", "USB-C", "Linux (Buildroot)", "Mini Linux + NPU ; très compact", 38, "3.3", "mini"],
+["Sophgo Duo / Duo 256M / Duo S ; Milk-V Duo / Duo 256M / Duo S (CV1800B / SG2002 / SG2000)", "Milk-V / Sophgo", "rv", "SG2002", "RISC-V C906 1 GHz + ARM A53 + 8051 + TPU 1 TOPS", "64 / 256 / 512 MB", "microSD", "Wi-Fi (Duo S W) , Ethernet (Duo S)", "26 broches", "USB-C", "Linux (Buildroot), RTOS", "Linux à 5 $ en format mini", 26, "3.3", "mini"],
+["Milk-V Mars / Mars CM / Vega / Jupiter / Pioneer / Megrez", "Milk-V", "rv", "StarFive JH7110 / SpacemiT K1 / SOPHON SG2042 / Eswin", "RISC-V 4–64 cœurs", "2–128 GB", "microSD / eMMC / NVMe", "Wi-Fi 6 (selon)", "40 pin Pi", "USB 3", "Linux (Debian, Ubuntu)", "Grands RISC-V", 28, "3.3", "sbc"],
+["VisionFive 2 / VisionFive 2 Lite", "StarFive", "rv", "JH7110", "4×SiFive U74 1,5 GHz", "2–8 GB", "microSD / eMMC / NVMe", "Wi-Fi 4 (certaines) + gigabit ×2", "40 pin", "USB 3", "Linux, Debian", "RISC-V Linux de référence", 28, "3.3", "sbc"],
+["Lichee Pi 4A / Pi 3A / Console 4A / Lichee RV / Lichee Pi Zero", "Sipeed", "rv", "T-Head TH1520 / SpacemiT K1 / Allwinner D1", "4×C910 1,85 GHz / 8×X60", "2–16 GB", "eMMC / microSD", "Wi-Fi 6", "40 pin", "USB 3", "Linux", "RISC-V puissant", 28, "3.3", "sbc"],
+["BL616 / BL602 (M0S Dock, Sipeed M0S)", "Sipeed / Bouffalo", "rv", "BL616", "RISC-V 320 MHz", "480 KB + 64 MB PSRAM", "—", "Wi-Fi 6 + BLE 5.3 + Zigbee", "—", "USB-C", "Bouffalo SDK, Zephyr", "Wi-Fi 6 pas cher", 20, "3.3", "mini"],
+["Tang Nano 1K / 4K / 9K / 20K", "Sipeed (Gowin)", "fpga", "GW1NZ-1 / GW1NSR-4C / GW1NR-9 / GW2AR-18", "1,2 k – 20 k LUT4", "—", "—", "—", "Écran, SDRAM, HDMI (20K)", "USB-C (JTAG/UART)", "Verilog/VHDL, Gowin EDA, Apicula/Yosys", "Le moins cher des FPGA (nano)", 40, "3.3", "std"],
+["Tang Primer 20K / 25K / Mega 138K", "Sipeed (Gowin)", "fpga", "GW2A-18 / GW5A-25 / GW5AST-138", "20 k – 138 k LUT", "DDR3 / DDR3L", "—", "—", "HDMI, PCIe, SD", "USB-C", "Gowin EDA", "Plus gros", 60, "3.3", "large"],
+["iCEBreaker / iCESugar / Fomu", "1BitSquared / Muse Lab / Tomu", "fpga", "Lattice iCE40UP5K", "5,3 k LUT", "—", "—", "—", "PMOD", "USB", "Verilog, Yosys + nextpnr, Amaranth", "Open-source toolchain", 20, "3.3", "std"],
+["ULX3S / ULX4M / Colorlight i5/i9", "Radiona / Colorlight", "fpga", "Lattice ECP5 (12–85 F)", "12–85 k LUT", "SDRAM / DDR3", "—", "Wi-Fi + BLE (ESP32 sur ULX3S)", "HDMI, SD, GPIO", "USB", "Yosys, nextpnr, LiteX", "FPGA ouvert avec ESP32 intégré", 56, "3.3", "large"],
+["Digilent Arty A7 / S7 / Nexys A7 / Basys 3 / Cmod", "Digilent (AMD Xilinx)", "fpga", "Artix-7 / Spartan-7", "15–100 k cellules", "128 MB DDR3 (Arty)", "—", "—", "PMOD, Ethernet, HDMI", "USB", "Vivado, MicroBlaze", "Plateforme éducation FPGA", 60, "3.3", "large"],
+["PYNQ-Z2 / Zybo Z7 / Kria KV260 / KR260 / Ultra96", "TUL / Digilent / AMD", "fpga", "Zynq-7000 / Zynq UltraScale+", "2×A9 / 4×A53 + FPGA 100–250 k LC", "1–4 GB", "microSD", "Wi-Fi (Ultra96)", "Caméra, HDMI, GPIO", "USB", "PYNQ (Python), Linux", "FPGA + CPU ARM", 60, "3.3", "large"],
+["Terasic DE10-Nano / DE0-Nano / DE1-SoC", "Terasic (Intel/Altera)", "fpga", "Cyclone V SoC / Cyclone IV", "2×A9 + 110 k LE", "1 GB", "microSD", "—", "Arduino, HDMI", "USB", "Quartus, Linux", "FPGA + Linux", 100, "3.3", "large"],
+["TinyFPGA BX / Alchitry Au / Cu / Pt", "TinyFPGA / Alchitry", "fpga", "iCE40LP8K / Artix-7 / iCE40HX8K", "8 k – 35 k LUT", "—", "—", "—", "Format breadboard", "USB", "Alchitry Labs / Verilog / Lucid", "—", 30, "3.3", "std"],
+["Microchip PolarFire SoC Icicle / Discovery Kit", "Microchip", "fpga", "MPFS (RISC-V)", "4×U54 + 1×E51 + FPGA", "2 GB", "eMMC / SD", "—", "—", "USB", "Libero, Linux", "RISC-V + FPGA", null, "3.3", "large"],
+["Heltec WiFi LoRa 32 V3 / V4", "Heltec", "lora", "ESP32-S3 + SX1262", "LX7 240 MHz", "512 KB + 8 MB (V4)", "8 MB", "Wi-Fi + BLE + LoRa 863–928 MHz", "OLED 0,96″, batterie LiPo", "USB-C natif", "Arduino, Meshtastic", "Très courant pour Meshtastic", 28, "3.3", "std"],
+["Heltec Mesh Node T114 / Wireless Tracker / Wireless Stick Lite V3 / HT-n5262", "Heltec", "lora", "nRF52840 + SX1262 / ESP32-S3", "M4F / LX7", "—", "—", "BLE + LoRa (+ GNSS)", "écran / e-ink", "USB-C", "Meshtastic, Arduino", "Meshtastic / GPS basse conso", 20, "3.3", "std"],
+["LILYGO T-Beam / T-Beam Supreme", "LILYGO", "lora", "ESP32 / ESP32-S3 + SX1262 + GPS", "—", "—", "—", "Wi-Fi + BLE + LoRa + GPS", "Support batterie 18650", "USB-C", "Meshtastic", "Standard Meshtastic", 20, "3.3", "std"],
+["LILYGO T-Echo / T-Deck / T-Watch / T-Display / T-Dongle / T-Embed", "LILYGO", "lora", "nRF52840 / ESP32-S3 + LoRa", "—", "—", "—", "BLE + LoRa (selon)", "E-ink (T-Echo), écran + clavier (T-Deck)", "USB-C", "Meshtastic, Arduino", "Nombreux formats à écran", 20, "3.3", "std"],
+["RAK WisBlock (RAK4631 / RAK11200 / RAK11310…)", "RAKwireless", "lora", "nRF52840 / ESP32 / RP2040 + SX1262", "—", "—", "—", "BLE + LoRa", "Modules enfichables (système à base)", "USB-C", "Arduino, Meshtastic", "Modulaire, bon pour produits", 30, "3.3", "std"],
+["SenseCAP Indicator / T1000-E / Wio Tracker", "Seeed", "lora", "ESP32-S3 + RP2040 / nRF52840 + LR1110", "—", "—", "—", "Wi-Fi + BLE + LoRa", "Écran, capteurs, GPS", "USB-C", "Meshtastic, Arduino", "—", null, "3.3", "std"],
+["Adafruit Feather RP2040 RFM95 / Feather 32u4 RFM / Feather M0 LoRa", "Adafruit", "lora", "RP2040 / ATmega32U4 / SAMD21 + RFM95", "—", "—", "—", "LoRa 433/868/915", "Format Feather", "USB", "CircuitPython / Arduino", "—", 20, "3.3", "std"],
+["TTGO LoRa32 / LILYGO LoRa32 V2.1", "LILYGO", "lora", "ESP32 + SX1276", "LX6 240 MHz", "520 KB", "4 MB", "Wi-Fi + BLE + LoRa", "OLED", "Micro-USB", "Arduino", "Ancien mais répandu", 28, "3.3", "std"],
+["M5Stack Core2 / CoreS3 / StickC Plus2 / Atom / AtomS3 / Cardputer / Dial / Tab5", "M5Stack", "wear", "ESP32 / S3 / P4", "LX6 / LX7 / RISC-V", "4–32 MB", "—", "Wi-Fi + BLE", "Écran tactile / Grove / Capteurs", "USB-C", "UIFlow, Arduino, ESP-IDF", "Écosystème plug-and-play énorme", null, "3.3", "std"],
+["Waveshare ESP32-S3 / Touch / AMOLED / E-Paper boards", "Waveshare", "wear", "ESP32-S3", "—", "—", "—", "Wi-Fi + BLE", "Écran rond / carré / e-paper", "USB-C", "Arduino, ESP-IDF", "Variantes multiples", null, "3.3", "std"],
+["Flipper Zero", "Flipper Devices", "pen", "STM32WB55RG + CC1101", "M4 64 MHz + M0+ BLE", "256 KB", "1 MB + microSD", "Sub-GHz, NFC 13,56 MHz, RFID 125 kHz, IR, BLE, iButton", "18 GPIO, USB-C", "USB-C natif", "Firmware officiel/Unleashed/Momentum, apps C", "Outil portable multi-protocoles (pentest autorisé uniquement)", 18, "3.3", "prop"],
+["M5Stack Cardputer / Cardputer ADV", "M5Stack", "pen", "ESP32-S3", "LX7 240 MHz", "8 MB PSRAM (ADV)", "8–16 MB", "Wi-Fi + BLE, IR, + modules", "Clavier 56 touches, écran, micro", "USB-C", "Bruce, Arduino, MicroPython", "Mini ordi pentest / Bruce firmware", null, "3.3", "std"],
+["LILYGO T-Embed CC1101 / T-Deck Plus", "LILYGO", "pen", "ESP32-S3 + CC1101", "LX7", "—", "—", "Wi-Fi + BLE + sub-GHz", "Encodeur, écran", "USB-C", "Bruce, Meshtastic", "—", null, "3.3", "std"],
+["Wi-Fi Pineapple / Hak5 Packet Squirrel / Shark Jack / Rubber Ducky", "Hak5", "pen", "MIPS / ARM", "—", "—", "—", "Wi-Fi", "Ethernet, USB", "USB", "Firmware propriétaire", "Outils pentest autorisés", null, "", "prop"],
+["Proxmark3 RDV4 / Easy", "Proxmark", "pen", "AT91SAM7S512 + FPGA", "ARM7", "—", "—", "RFID 125 kHz + 13,56 MHz", "Antennes", "USB", "Iceman, Proxmark client", "Analyse RFID/NFC", null, "", "acc"],
+["HackRF One / PortaPack H2/H4 (Mayhem)", "Great Scott Gadgets", "pen", "LPC4320 (M4+M0) + CPLD", "M4 204 MHz", "—", "—", "Émission/réception 1 MHz – 6 GHz", "—", "USB", "GNU Radio, Mayhem", "Radio logicielle (SDR)", null, "", "acc"],
+["RTL-SDR v3/v4 / Airspy / SDRplay RSP / BladeRF / LimeSDR / Adalm-Pluto / USRP", "Divers", "pen", "RTL2832U / R820T2 / AD9363", "—", "—", "—", "Réception 24 MHz–1,7 GHz (RTL) ; émission pour les autres", "—", "USB", "GNU Radio, SDR++", "SDR (réception/émission)", null, "", "acc"],
+["Ubertooth One / nRF Sniffer / Sniffle / Flipper", "Great Scott Gadgets / Nordic", "pen", "LPC175x / nRF52840", "M3 / M4", "—", "—", "BLE sniffer", "—", "USB", "Wireshark", "Écoute BLE", null, "", "acc"],
+["Home Assistant Green / Yellow / Connect ZBT-1 / SkyConnect", "Nabu Casa", "oth", "Amlogic S905Y2 / CM4 / EFR32MG21", "—", "4 GB", "32 GB eMMC", "Ethernet ; Zigbee/Thread via dongle", "—", "USB", "Home Assistant OS", "Domotique ; dongle Zigbee/Thread", null, "", "dongle"],
+["Sonoff ZBDongle-E / ZBDongle-P / TubesZB / SLZB-06 (Zigbee / Thread / Matter)", "Sonoff / SMLIGHT", "nrf", "EFR32MG21 / CC2652P / MG24", "M33 / M4F", "—", "—", "Zigbee 3.0 + Thread (+ Matter)", "—", "USB-A / Ethernet / PoE", "Zigbee2MQTT, ZHA, OpenThread", "Coordinateur Zigbee/Thread", null, "", "dongle"],
+["Arduino PLC / Opta / Controllino / Industrial Shields / M-Duino", "Divers", "ind", "STM32H747 / ATmega2560 / ESP32", "—", "—", "—", "Ethernet, RS-485, Wi-Fi", "Relais, 24 V, DIN", "USB", "IEC 61131 / Arduino", "Automate industriel ouvert", null, "24", "din"],
+["Raspberry Pi Industrial (RevPi Connect/Core) / Kunbus", "Kunbus", "ind", "BCM2711 (CM4)", "4×A72", "1–8 GB", "eMMC", "Ethernet, RS-485, CAN", "Modules DIN", "USB", "RevPi OS, Node-RED", "Automate Linux", null, "24", "din"],
+["Shelly Plus / Sonoff Mini / Tuya modules (ESP-based) / Athom", "Shelly / Sonoff / Athom", "ind", "ESP32 / ESP8266 / BK7231", "—", "—", "—", "Wi-Fi (+ BLE, + Zigbee)", "Relais secteur 230 V", "—", "ESPHome, Tasmota", "Interrupteurs domestiques reflashables", 4, "3.3", "mod"],
+["WeMos / LOLIN D1 mini Pro / S2 mini / S3 mini / C3 mini / C3 Pro", "LOLIN (WEMOS)", "mcu", "ESP8266 / ESP32-S2 / S3 / C3", "Voir ESP", "—", "—", "Wi-Fi (+ BLE)", "Format D1 mini (shields)", "Micro-USB / USB-C", "Arduino, MicroPython, ESPHome", "Écosystème de shields compatibles", 11, "3.3", "mini"],
+["Mikroe Click Boards (plus de 1600) + Clicker 2 / Fusion / Quail / Hexiwear", "MikroElektronika", "oth", "Divers", "—", "—", "—", "—", "Format mikroBUS (plug-and-play)", "USB", "mikroC / mikroSDK", "Catalogue de modules capteurs/radio", null, "", "acc"],
+["Adafruit STEMMA QT / SparkFun Qwiic / Seeed Grove / Pimoroni Breakout Garden / DFRobot Gravity", "Divers", "oth", "—", "—", "—", "—", "—", "Connecteurs standard I²C / analog sans soudure", "—", "CircuitPython, Arduino", "Écosystèmes de connecteurs", null, "", "acc"],
+["Tillitis TKey / Raspberry Pi Debug Probe / Black Magic Probe / J-Link EDU / ST-LINK V3 / CMSIS-DAP", "Divers", "oth", "—", "—", "—", "—", "—", "SWD / JTAG", "USB", "OpenOCD, probe-rs", "Programmeurs / débogueurs (à avoir)", null, "", "acc"],
+["3D printer boards : BIGTREETECH SKR / Octopus / Manta ; Creality V4.2.x ; Duet 3 ; Prusa Buddy ; FYSETC / Mellow", "Divers", "oth", "STM32 / LPC / SAMD51 / RP2040", "M3 à M7", "—", "—", "Wi-Fi/Ethernet selon", "Drivers de moteurs (TMC), thermistances", "USB / CAN", "Klipper, Marlin, RepRapFirmware", "Cartes de contrôle d'imprimante 3D", null, "3.3/24", "large"],
+["Pico-based Keyboards (KMK/QMK : Keebio, Corne, Lily58, Sofle, Nice!Nano v2)", "Communauté", "oth", "RP2040 / nRF52840", "M0+ / M4F", "—", "—", "BLE (Nice!Nano)", "Pro Micro / Elite-C", "USB-C", "QMK, ZMK, KMK, Vial", "Claviers mécaniques personnalisés", 18, "3.3/5", "mini"],
+["e-paper boards : Inkplate 6/10 / TRMNL / reTerminal E1001 / LilyGO T5 / Waveshare e-Paper HAT", "Soldered / Seeed / LILYGO / Waveshare", "wear", "ESP32 / ESP32-S3 / ESP32-C3", "—", "—", "—", "Wi-Fi + BLE", "Écran e-ink 2,13″–13,3″", "USB-C", "Arduino, ESPHome", "Écrans basse conso (dashboards)", null, "3.3", "large"],
+["reTerminal / reTerminal DM / reServer / reComputer Jetson", "Seeed", "ai", "CM4 / Jetson / RK3588", "—", "—", "—", "Wi-Fi + BLE + 4G", "Écran 5″ tactile, CAN, RS485", "USB", "Linux", "IHM / passerelle Linux", null, "", "prop"],
+["Raspberry Pi Zero 2 W Kits (Pimoroni Enviro / Blinkt / Unicorn HAT / Display HAT Mini / Inky)", "Pimoroni", "oth", "—", "—", "—", "—", "—", "HAT à empiler", "—", "Python", "HAT / extensions Raspberry", null, "", "acc"],
+["Raspberry Pi Build HAT / Sense HAT / Camera Module 3 / AI Camera / Touch Display 2", "Raspberry Pi", "oth", "—", "—", "—", "—", "—", "—", "—", "Python", "Extensions officielles", null, "", "acc"],
+["STM32 Blue Pill alternatives : WeAct STM32G431 / STM32H562 / STM32H750 Core boards", "WeAct", "stm", "STM32G431 / H562 / H750", "M4F 170 MHz / M33 250 MHz / M7 480 MHz", "128 KB – 640 KB", "—", "—", "Format Black Pill", "USB-C", "Arduino, C", "Beaucoup de puissance, peu cher", 32, "3.3", "mini"],
+["Sony Spresense Main Board", "Sony", "mcu", "CXD5602", "6×M4F 156 MHz", "1,5 MB", "8 MB", "—", "GPS/GNSS intégré, ADC, caméra, audio 192 kHz", "Micro-USB", "Arduino, NuttX", "Multicœur + audio hi-res + GNSS", 28, "1.8", "std"],
+["Particle Photon 2 / Argon / Boron / Tracker One", "Particle", "mcu", "RTL8721DM / nRF52840 / nRF9160", "M33 / M4F", "—", "—", "Wi-Fi 5 GHz + BLE / LTE-M cellulaire", "Format Feather", "Micro-USB / USB-C", "Device OS, Arduino", "IoT avec cloud ; gamme cellulaire", 20, "3.3", "std"],
+["SparkFun MicroMod / Thing Plus / Edge 2 (Ambiq Apollo3)", "SparkFun", "mcu", "Apollo3 / ESP32 / nRF52840 / RP2040 / STM32", "M4F 48–96 MHz", "384 KB", "1 MB", "BLE (selon)", "Cartes à modules interchangeables", "USB-C", "Arduino, SDK Ambiq", "Très basse conso (Apollo3) ; MicroMod = processeur interchangeable", 20, "3.3", "mod"],
+["Alif Ensemble DevKit E3 / E7", "Alif", "ai", "Ensemble E3 / E7", "M55 + A32 + Ethos-U55/U85 NPU", "4–13 MB", "—", "BLE, Wi-Fi (selon)", "Écran, caméra MIPI", "USB-C", "Zephyr, Linux", "MCU + NPU puissant basse conso", 40, "1.8", "std"],
+["LILYGO T-SIM7000 / T-SIM7600 / T-A7670 / T-Call", "LILYGO", "lora", "ESP32 + SIMCom (4G / LTE-M / NB-IoT)", "LX6 240 MHz", "520 KB", "4–16 MB", "Wi-Fi + BLE + cellulaire 2G/4G + GNSS", "Emplacement SIM, batterie", "USB-C / micro-USB", "Arduino", "ESP32 avec modem 4G", 20, "3.3", "std"],
+["Pycom FiPy / GPy / LoPy (arrêtés)", "Pycom", "mcu", "ESP32 + modem", "LX6", "—", "—", "Wi-Fi, BLE, LoRa, Sigfox, LTE-M", "—", "Micro-USB", "MicroPython", "Fin de vie — pour info", 24, "3.3", "std"]
+];
+/* [puce, fabricant, type, cœur, fréquence, RAM, flash/stockage, radio, E/S, USB, tension E/S, remarque] */
+var CHIPS2=[
+['ATmega328P','Microchip (Atmel)','MCU 8 bits','AVR','16 MHz','2 KB','32 KB','—','23','Non (pont externe)','5 V (1,8–5,5 V)','Arduino Uno/Nano classiques'],
+['ATmega2560','Microchip','MCU 8 bits','AVR','16 MHz','8 KB','256 KB','—','86','Non','5 V','Arduino Mega'],
+['ATmega32U4','Microchip','MCU 8 bits','AVR','16 MHz','2,5 KB','32 KB','—','26','USB 2.0 full speed (clavier/souris)','5 V ou 3,3 V','Leonardo, Pro Micro'],
+['ATtiny85','Microchip','MCU 8 bits','AVR','8–20 MHz','512 B','8 KB','—','6','Non (V-USB logiciel)','1,8–5,5 V','Digispark, très petit'],
+['SAMD21','Microchip','MCU 32 bits','Cortex-M0+','48 MHz','32 KB','256 KB','—','~38','USB full speed','3,3 V','Arduino Zero/MKR, Feather M0'],
+['SAMD51','Microchip','MCU 32 bits','Cortex-M4F','120 MHz','192 KB','512 KB','—','~60','USB full speed','3,3 V','Feather M4, Wio Terminal'],
+['RA4M1','Renesas','MCU 32 bits','Cortex-M4','48 MHz','32 KB','256 KB','—','~48','USB full speed','5 V tolérant','Arduino Uno R4'],
+['RA6M5','Renesas','MCU 32 bits','Cortex-M33','200 MHz','512 KB','2 MB','—','~100','USB, Ethernet, CAN','3,3 V','Arduino Portenta C33'],
+['RP2040','Raspberry Pi','MCU 32 bits','2×Cortex-M0+','133 MHz','264 KB','Externe (QSPI)','—','30','USB 1.1 (device + host)','3,3 V','8 machines d\'état PIO, ADC 12 bits'],
+['RP2350 (A / B)','Raspberry Pi','MCU 32 bits','2×Cortex-M33 ou 2×RISC-V Hazard3','150 MHz','520 KB','Externe (QSPI)','—','30 (A) / 48 (B)','USB 1.1','3,3 V','TrustZone, OTP, 12 machines PIO'],
+['nRF52832','Nordic','MCU + radio','Cortex-M4F','64 MHz','64 KB','512 KB','BLE 5','32','Non','1,7–3,6 V','BLE basse conso'],
+['nRF52840','Nordic','MCU + radio','Cortex-M4F','64 MHz','256 KB','1 MB','BLE 5, Thread, Zigbee, ANT, NFC','48','USB 2.0 full speed','1,7–5,5 V','Référence BLE / 802.15.4'],
+['nRF5340','Nordic','MCU + radio','2×Cortex-M33','128 + 64 MHz','512 + 64 KB','1 MB + 256 KB','BLE 5.3, Thread, Zigbee, Matter','48','USB','1,7–3,6 V','Double cœur, LE Audio'],
+['nRF54L15','Nordic','MCU + radio','Cortex-M33 + RISC-V (FLPR)','128 MHz','256 KB','1,5 MB (RRAM)','BLE 6.0, Thread, Zigbee, Matter','32','USB (selon version)','1,7–3,6 V','Nouvelle génération 2025'],
+['nRF9160 / nRF9151','Nordic','MCU + cellulaire','Cortex-M33','64 MHz','256 KB','1 MB','LTE-M, NB-IoT, GNSS','32','Non','1,8 V','IoT cellulaire'],
+['EFR32MG24 / MGM240','Silicon Labs','MCU + radio','Cortex-M33','78 MHz','256 KB','1,5 MB','BLE 5.3, Thread, Zigbee, Matter','~30','Non','3,3 V','Matter / Thread'],
+['CC1352R / CC2652','Texas Instruments','MCU + radio','Cortex-M4F','48 MHz','80 KB','352 KB','BLE, Zigbee, Thread, sub-GHz','31','Non','1,8–3,8 V','Multi-protocole'],
+['CXD5602','Sony','MCU','6×Cortex-M4F','156 MHz','1,5 MB','8 MB (ext)','GNSS','28','USB','1,8 V / 3,3 V','Spresense'],
+['RTL8720DN (BW16)','Realtek','MCU + Wi-Fi','Cortex-M4F + KM0','200 MHz','4 MB','16 MB','Wi-Fi 2,4+5 GHz, BLE 5','~20','USB (selon carte)','3,3 V','Wi-Fi 5 GHz pas cher'],
+['STM32F103','ST','MCU 32 bits','Cortex-M3','72 MHz','20 KB','64–128 KB','—','37','USB full speed, CAN','3,3 V (5 V tolérant)','Blue Pill'],
+['STM32F401 / F411','ST','MCU 32 bits','Cortex-M4F','84 / 100 MHz','64 / 128 KB','256 / 512 KB','—','50','USB OTG','3,3 V (5 V tolérant)','Black Pill, Nucleo-64'],
+['STM32F446','ST','MCU 32 bits','Cortex-M4F','180 MHz','128 KB','512 KB','—','~100','USB OTG, CAN','3,3 V','Nucleo-F446RE'],
+['STM32G431 / G474','ST','MCU 32 bits','Cortex-M4F','170 MHz','32 / 128 KB','128 / 512 KB','—','~80','USB, CAN-FD','3,3 V','Contrôle moteur, analogique'],
+['STM32L4 / L432','ST','MCU 32 bits','Cortex-M4F','80 MHz','64 KB','256 KB','—','~50','USB','1,7–3,6 V','Basse conso'],
+['STM32H743','ST','MCU 32 bits','Cortex-M7','480 MHz','1 MB','2 MB','—','~140','USB HS, Ethernet, CAN-FD','3,3 V','Haute performance'],
+['STM32H747','ST','MCU 32 bits','Cortex-M7 + M4','480 + 240 MHz','1 MB','2 MB','—','~160','USB HS, Ethernet, MIPI DSI','3,3 V','Giga, Portenta H7, Opta'],
+['STM32U575','ST','MCU 32 bits','Cortex-M33','160 MHz','786 KB','2 MB','—','~100','USB','1,7–3,6 V','Basse conso, TrustZone'],
+['STM32WB55','ST','MCU + radio','Cortex-M4F + M0+','64 MHz','256 KB','1 MB','BLE 5, 802.15.4 (Thread/Zigbee)','~70','USB','1,7–3,6 V','Flipper Zero'],
+['STM32WL55','ST','MCU + radio','Cortex-M4 + M0+','48 MHz','64 KB','256 KB','LoRa, sub-GHz','~43','USB','1,8–3,6 V','LoRa intégré'],
+['STM32N657','ST','MCU IA','Cortex-M55 + NPU','800 MHz','4,2 MB','Externe','—','~100','USB, MIPI CSI','3,3 V','NPU 600 GOPS'],
+['STM32MP135 / MP157','ST','Processeur Linux','1–2×A7 (+ M4)','650–800 MHz','DDR externe','Externe','—','~100','USB, Ethernet','3,3 V','Linux industriel'],
+['i.MX RT1062','NXP','MCU crossover','Cortex-M7','600 MHz','1 MB','Externe (QSPI)','—','~127','USB HS ×2, Ethernet','3,3 V','Teensy 4.x'],
+['K210','Kendryte','MCU IA','2×RISC-V 64 bits','400 MHz','8 MB','Externe','—','48','Non','1,8 / 3,3 V','KPU 0,25 TOPS (ancien)'],
+['CH32V003','WCH','MCU RISC-V','QingKe V2A','48 MHz','2 KB','16 KB','—','18','Non','3,3–5 V','Très bas prix'],
+['CH32V307','WCH','MCU RISC-V','QingKe V4F','144 MHz','64 KB','256 KB','—','80','USB HS, Ethernet','3,3 V','—'],
+['BL616','Bouffalo','MCU + radio','RISC-V 32 bits','320 MHz','480 KB','Externe','Wi-Fi 6, BLE 5.3, 802.15.4','~20','USB','3,3 V','—'],
+['GD32VF103','GigaDevice','MCU RISC-V','Bumblebee RV32','108 MHz','32 KB','128 KB','—','37','USB OTG, CAN','3,3 V','Longan Nano'],
+['Apollo3 Blue','Ambiq','MCU basse conso','Cortex-M4F','48–96 MHz','384 KB','1 MB','BLE 5','48','Non','1,8 V','Très basse consommation'],
+['PSoC 6','Infineon','MCU','Cortex-M4 + M0+','150 MHz','1 MB','2 MB','BLE 5 (63)','~100','USB','1,7–3,6 V','CapSense'],
+['Propeller P2X8C4M64P','Parallax','MCU 8 cœurs','8 cœurs 32 bits','180 MHz','512 KB','Externe','—','64','USB (selon carte)','3,3 V','E/S intelligentes'],
+['Alif Ensemble E3 / E7','Alif','MCU + NPU','Cortex-M55 + A32 + Ethos','400 MHz','4–13 MB','—','—','~100','USB','1,8 V / 3,3 V','NPU basse conso'],
+['BCM2711','Broadcom','SoC Linux','4×Cortex-A72','1,5 GHz','1–8 GB','microSD / USB','—','28','USB 3','3,3 V','Raspberry Pi 4'],
+['BCM2712','Broadcom','SoC Linux','4×Cortex-A76','2,4 GHz','2–16 GB','microSD / PCIe','—','28','USB 3','3,3 V','Raspberry Pi 5'],
+['RK3588 / RK3588S','Rockchip','SoC Linux','4×A76 + 4×A55','2,4 GHz','4–32 GB','eMMC / NVMe','—','28','USB 3, PCIe','3,3 V','NPU 6 TOPS ; Orange Pi 5, Rock 5'],
+['RK3566 / RK3568','Rockchip','SoC Linux','4×A55','1,8 GHz','1–8 GB','eMMC / microSD','—','28','USB 3','3,3 V','NPU 1 TOPS'],
+['RK3399','Rockchip','SoC Linux','2×A72 + 4×A53','1,8 GHz','2–4 GB','eMMC','—','28','USB 3','3,3 V','Génération plus ancienne'],
+['Allwinner H618 / H616','Allwinner','SoC Linux','4×A53','1,5 GHz','1–4 GB','microSD','—','28','USB','3,3 V','Orange Pi Zero 3'],
+['Amlogic S905X3 / A311D','Amlogic','SoC Linux','4×A55 / 4×A73 + 2×A53','1,9–2,2 GHz','2–4 GB','eMMC','—','28','USB 3','3,3 V','Odroid C4, Khadas VIM3 (NPU 5 TOPS)'],
+['StarFive JH7110','StarFive','SoC Linux RISC-V','4×U74','1,5 GHz','2–8 GB','microSD / NVMe','—','28','USB 3, Ethernet ×2','3,3 V','VisionFive 2'],
+['SpacemiT K1','SpacemiT','SoC Linux RISC-V','8×X60','1,6 GHz','2–16 GB','eMMC / NVMe','—','28','USB 3','3,3 V','BPI-F3, Lichee Pi 3A'],
+['SG2002 / CV1800B','Sophgo','SoC Linux RISC-V + ARM','C906 + A53 + 8051','1 GHz','64–256 MB','microSD','—','~26','USB','3,3 V','TPU 1 TOPS (Milk-V Duo, MaixCAM)'],
+['RV1106 / RV1103','Rockchip','SoC Linux + NPU','A7 + RISC-V','1,2 GHz','64–256 MB','NAND / microSD','—','~38','USB','3,3 V','Luckfox Pico'],
+['Intel N100 / N97','Intel','SoC x86','4×Gracemont','3,4 GHz','8–32 GB','NVMe / SATA','—','Variable','USB 3','3,3 V','LattePanda, Radxa X4, ZimaBoard'],
+['AM3358','Texas Instruments','SoC Linux','Cortex-A8 + 2×PRU','1 GHz','512 MB','eMMC','—','65','USB 2','3,3 V','BeagleBone Black (PRU temps réel)'],
+['Jetson Orin Nano','NVIDIA','SoC IA','6×A78AE + GPU Ampere','1,5 GHz','4–8 GB','NVMe','—','28','USB 3','3,3 V','67 TOPS (Super)'],
+['Edge TPU (Coral)','Google','Accélérateur IA','ASIC TPU','—','—','—','—','—','USB / PCIe / M.2','—','4 TOPS'],
+['Hailo-8 / 8L / 10H','Hailo','Accélérateur IA','NPU','—','—','—','—','—','PCIe / M.2','—','13 / 26 / 40 TOPS'],
+['Myriad X','Intel','Accélérateur IA','VPU','—','—','—','—','—','USB 3','—','4 TOPS ; OAK-D']
+];
+
+/* ---------- explorer (toutes cartes) ---------- */
+var FORMT={mini:'Mini',std:'Standard',large:'Grande',sbc:'Mini-PC',mod:'Module',dongle:'Dongle',din:'Rail DIN',prop:'Autre',acc:'Accessoire'};
+var VOLTT={'3.3':'3,3 V','5':'5 V','3.3/5':'3,3 V ou 5 V','1.8':'1,8 / 3,3 V','24':'24 V','3.3/24':'3,3 V + 24 V','':'—'};
+var DEDUP={'Arduino Nano ESP32':1,'Heltec WiFi LoRa 32 V3 / V4':1,'LILYGO T-Beam / T-Beam Supreme':1,'TTGO LoRa32 / LILYGO LoRa32 V2.1':1,'M5Stack Core2 / CoreS3 / StickC Plus2 / Atom / AtomS3 / Cardputer / Dial / Tab5':1,'M5Stack Cardputer / Cardputer ADV':1,'WeMos / LOLIN D1 mini Pro / S2 mini / S3 mini / C3 mini / C3 Pro':1};
+var U=[];
+(function(){
+function ramB(s){var m=String(s).replace(/,/g,'.').match(/(\d+(?:\.\d+)?)\s*(KB|MB|GB|Ko|Mo|Go)/gi),mx=0;
+  (m||[]).forEach(function(x){var p=x.match(/([\d.]+)\s*(\w+)/),v=parseFloat(p[1]),u=p[2].toUpperCase();
+    v*=(u==='KB'||u==='KO')?1024:(u==='MB'||u==='MO')?1048576:1073741824;if(v>mx)mx=v});return mx}
+function mkEsp(n){
+  if(/^(Wemos|LOLIN|LoLin)/i.test(n))return 'LOLIN (Wemos)'; if(/Adafruit/i.test(n))return 'Adafruit'; if(/Seeed|XIAO/i.test(n))return 'Seeed';
+  if(/M5/i.test(n))return 'M5Stack'; if(/LILYGO|LilyGO|TTGO/i.test(n))return 'LILYGO'; if(/Heltec/i.test(n))return 'Heltec'; if(/SparkFun/i.test(n))return 'SparkFun';
+  if(/Waveshare/i.test(n))return 'Waveshare'; if(/Arduino/i.test(n))return 'Arduino'; if(/DevKit|Espressif/i.test(n))return 'Espressif'; if(/NodeMCU/i.test(n))return 'NodeMCU (communauté)';
+  if(/DFRobot|FireBeetle/i.test(n))return 'DFRobot'; if(/Olimex/i.test(n))return 'Olimex'; if(/Unexpected|FeatherS|TinyS|ProS/i.test(n))return 'Unexpected Maker'; return 'Génériques / autres';
+}
+BOARDS.forEach(function(b,bi){
+  var c=BYID[b[1]],tg={},ex=b[5];
+  if(c.wifi>0)tg.wifi=1; if(c.b5)tg.wifi5=1; if(c.bleOn)tg.ble=1; if(c.z)tg.thread=1; if(c.eth)tg.eth=1; if(c.can)tg.can=1; if(c.dacOn)tg.dac=1;
+  if(c.i2s&&c.i2s!=='—'&&c.i2s!=='0')tg.audio=1; if(ex.indexOf('audio')>-1)tg.audio=1;
+  if(c.cam||ex.indexOf('camera')>-1)tg.camera=1;
+  if(b[3]==='native'||b[3]==='both')tg.usbn=1; if(b[2]==='usbc'||b[2]==='mixed')tg.usbc=1;
+  tg.arduino=1;tg.mpy=1; if(b[1]==='s2'||b[1]==='s3')tg.cpy=1; tg.mcu=1;
+  if(c.psOk)tg.psram=1;
+  if(ex.indexOf('ecran')>-1)tg.ecran=1; if(ex.indexOf('batterie')>-1)tg.batterie=1; if(ex.indexOf('microSD')>-1)tg.sd=1; if(ex.indexOf('LoRa')>-1)tg.lora=1;
+  if(/^(c2|c3|c5|c6|c61|h2|h21|h4|p4)$/.test(b[1]))tg.rv=1;
+  var radio=(c.wifi>0?c.wifiT:'')+(c.bleOn?' + BLE':'')+(c.z?' + 802.15.4':'')+(ex.indexOf('LoRa')>-1?' + LoRa':'');
+  U.push({n:b[0],cat:'esp',maker:mkEsp(b[0]),soc:c.n,cpu:c.cpu+' · '+c.mhz,ram:c.sramT,ramB:(c.sram||0)*1024,stor:c.flash,radio:radio||'—',io:c.gpioT+' GPIO',usb:CONNT[b[2]]+' · USB '+USBT[b[3]].toLowerCase(),soft:'Arduino, MicroPython, ESP-IDF, ESPHome',note:b[6],gpio:c.gpio,volt:'3.3',form:b[4],tg:tg,chip:b[1],ex:ex});
+});
+ALL.forEach(function(r){
+  if(DEDUP[r[0]])return;
+  var tg={},rad=r[7]+' '+r[0]+' '+r[3],gpio=r[12],volt=r[13],form=r[14];
+  if(/wi-?fi/i.test(rad))tg.wifi=1; if(/5 ?GHz|wi-?fi ?[56]\b/i.test(rad))tg.wifi5=1;
+  if(/\bble\b|bluetooth|\bbt ?[45]|nrf|esp32|bw16/i.test(r[7]))tg.ble=1;
+  if(/thread|zigbee|matter|802\.15\.4/i.test(r[7]))tg.thread=1;
+  if(/lora|sub-?ghz|cc1101|sx12|lr11|meshtastic/i.test(r[7]+' '+r[0]))tg.lora=1;
+  if(/lte|nb-iot|4g|cellul|sim7|a7670|gsm/i.test(r[7]+' '+r[0]+' '+r[3]))tg.cell=1;
+  if(/ethernet|gigabit|rj45|w5500/i.test(r[7]+' '+r[8]+' '+r[0]))tg.eth=1;
+  if(/natif|native|otg|hid|host/i.test(r[9]))tg.usbn=1; if(/usb-?c/i.test(r[9]))tg.usbc=1;
+  if(/st-?link|j-?link|débogueur|xds110|cmsis|edbg|\bob\b/i.test(r[8]+' '+r[11]+' '+r[0]))tg.debug=1;
+  if(/arduino/i.test(r[10])||r[2]==='ard')tg.arduino=1; if(/micropython|maixpy|mpy/i.test(r[10]))tg.mpy=1; if(/circuitpython/i.test(r[10]))tg.cpy=1; if(/zephyr/i.test(r[10]))tg.zephyr=1;
+  if(/risc-?v|hazard3|ch32|c906|u74|x60|th1520|c910/i.test(r[3]+' '+r[4]+' '+r[0]))tg.rv=1;
+  if(/npu|tpu|tops|ethos|kpu|vpu/i.test(r[3]+' '+r[4]+' '+r[11]+' '+r[0])||r[2]==='ai')tg.npu=1;
+  if(/psram|sdram|ddr/i.test(r[5]+' '+r[6]))tg.psram=1;
+  if(/écran|oled|lcd|tft|e-?ink|e-?paper|display|touch/i.test(r[8]+' '+r[11]+' '+r[0]))tg.ecran=1;
+  if(/caméra|camera|csi|mipi/i.test(r[8]+' '+r[11]+' '+r[0]))tg.camera=1;
+  if(/lipo|batterie|18650|feather/i.test(r[8]+' '+r[11]+' '+r[0]))tg.batterie=1;
+  if(/microsd|\btf\b|carte sd|\bsd\b/i.test(r[6]+' '+r[8]+' '+r[11]))tg.sd=1;
+  if(/\bcan\b|can-fd/i.test(r[8]+' '+r[7]+' '+r[11]))tg.can=1; if(/dac/i.test(r[8]))tg.dac=1;
+  if(/i²s|i2s|audio|micro\b|haut-parleur/i.test(r[8]+' '+r[11]))tg.audio=1;
+  if(/tolér/i.test(r[8]+' '+r[11])||volt==='5'||volt==='3.3/5')tg.vt5=1;
+  var lin=/linux|debian|jetpack|yocto|openwrt|android|windows/i.test(r[10])||r[2]==='rpi'||r[2]==='sbc';
+  if(lin){tg.linux=1;tg.usbn=1;}
+  if(r[2]==='ai'||tg.npu)tg.ai=1; if(r[2]==='fpga')tg.fpga=1;
+  if(!lin&&r[2]!=='fpga'&&r[2]!=='oth'&&form!=='acc')tg.mcu=1;
+  U.push({n:r[0],cat:r[2],maker:r[1],soc:r[3],cpu:r[4],ram:r[5],ramB:ramB(r[5]),stor:r[6],radio:r[7],io:r[8],usb:r[9],soft:r[10],note:r[11],gpio:gpio,volt:volt,form:form,tg:tg});
+});
+})();
+var CAT2=CATS;
+var CMP=[];
+var TAGL={wifi:'Wi-Fi',wifi5:'Wi-Fi 5 GHz',ble:'Bluetooth LE',thread:'Thread / Zigbee / Matter',lora:'LoRa / sub-GHz',cell:'Cellulaire',eth:'Ethernet',usbn:'USB natif',usbc:'USB-C',debug:'Débogueur intégré',arduino:'Arduino IDE',mpy:'MicroPython',cpy:'CircuitPython',zephyr:'Zephyr',rv:'RISC-V',npu:'NPU / IA',psram:'Mémoire externe',ecran:'Écran',camera:'Caméra',batterie:'Batterie LiPo',sd:'microSD',can:'CAN',dac:'DAC',audio:'Audio',vt5:'5 V toléré',linux:'Linux',mcu:'Micro-contrôleur'};
+(function(){
+var cs=$('#u-cat'),mk=$('#u-mk');
+cs.innerHTML='<option value="">Toutes les familles</option>'+Object.keys(CAT2).map(function(k){var n=U.filter(function(x){return x.cat===k}).length;return n?'<option value="'+k+'">'+esc(CAT2[k])+' ('+n+')</option>':''}).join('');
+var mkc={};U.forEach(function(x){mkc[x.maker]=(mkc[x.maker]||0)+1});
+mk.innerHTML='<option value="">Tous les fabricants</option>'+Object.keys(mkc).sort(function(a,b){return a.localeCompare(b)}).map(function(k){return '<option value="'+esc(k)+'">'+esc(k)+' ('+mkc[k]+')</option>'}).join('');
+var boxes=[].slice.call(document.querySelectorAll('#uform input[data-t]'));
+function gp(x){return x.gpio==null?-1:x.gpio}
+function filtered(){
+  var q=$('#u-q').value.trim().toLowerCase(),cat=cs.value,m=mk.value,ty=$('#u-type').value,fm=$('#u-form').value,ram=+$('#u-ram').value,g=+$('#u-gpio').value,v=$('#u-volt').value,noacc=$('#u-noacc').checked;
+  var on=boxes.filter(function(b){return b.checked}).map(function(b){return b.getAttribute('data-t')});
+  var rows=U.filter(function(x){
+    if(noacc&&x.form==='acc')return false;
+    if(cat&&x.cat!==cat)return false; if(m&&x.maker!==m)return false;
+    if(ty&&!x.tg[ty])return false; if(fm&&x.form!==fm)return false;
+    for(var i=0;i<on.length;i++)if(!x.tg[on[i]])return false;
+    if(ram&&x.ramB<ram)return false;
+    if(g&&gp(x)<g)return false;
+    if(v&&x.volt.split('/').indexOf(v)<0)return false;
+    if(q&&[x.n,x.maker,x.soc,x.note,x.soft,x.radio].join(' ').toLowerCase().indexOf(q)<0)return false;
+    return true;
+  });
+  var s=$('#u-sort').value;
+  rows.sort(function(a,b){
+    if(s==='gpio')return gp(b)-gp(a)||a.n.localeCompare(b.n);
+    if(s==='ram')return b.ramB-a.ramB||a.n.localeCompare(b.n);
+    if(s==='cat')return CAT2[a.cat].localeCompare(CAT2[b.cat])||a.n.localeCompare(b.n);
+    return a.n.localeCompare(b.n);
+  });
+  return rows;
+}
+function renderU(){
+  $('#v-ugpio').textContent=$('#u-gpio').value;
+  var rows=filtered();
+  $('#ucount').textContent=rows.length+' carte'+(rows.length>1?'s':'')+' sur '+U.length;
+  var by={};rows.forEach(function(x){by[x.cat]=(by[x.cat]||0)+1});
+  $('#usum').textContent=rows.length?'Répartition : '+Object.keys(by).sort(function(a,b){return by[b]-by[a]}).slice(0,6).map(function(k){return CAT2[k].split(' (')[0].split(' / ')[0]+' '+by[k]}).join(' · ')+(Object.keys(by).length>6?' · …':''):'Aucune carte ne cumule tout. Décochez un critère : les plus restrictifs sont souvent Wi-Fi 6, USB natif, NPU, cellulaire ou 5 GHz.';
+  var h='<thead><tr><th></th><th>Carte</th><th>Famille</th><th>Puce</th><th>Cœur / fréquence</th><th>RAM</th><th>GPIO</th><th>Tension</th><th>Radio / réseau</th><th>USB</th><th>Format</th><th>Logiciel</th></tr></thead><tbody>';
+  rows.forEach(function(x){
+    var i=U.indexOf(x),sel=CMP.indexOf(i)>-1;
+    h+='<tr class="'+(sel?'sel':'')+'"><td class="pick"><input type="checkbox" data-i="'+i+'" '+(sel?'checked':'')+' aria-label="Comparer"></td><td class="nm" style="white-space:normal;min-width:190px"><button type="button" data-o="'+i+'">'+esc(x.n)+'</button><div class="src">'+esc(x.maker)+'</div></td>';
+    [['Famille',CAT2[x.cat].split(' (')[0],1],['Puce',x.soc],['Cœur',x.cpu,1],['RAM',x.ram],['GPIO',x.gpio==null?'—':x.gpio],['Tension',VOLTT[x.volt]||x.volt],['Radio',x.radio],['USB',x.usb],['Format',FORMT[x.form]||x.form],['Logiciel',x.soft,1]].forEach(function(c){h+='<td data-l="'+c[0]+'" class="'+(c[2]?'hm':'')+'" style="white-space:normal;min-width:100px">'+esc(c[1])+'</td>'});
+    h+='</tr>';
+  });
+  $('#utbl').innerHTML=h+'</tbody>';
+  $('#u-cmpbtn').textContent='Comparer ('+CMP.length+')';
+  $('#cmpn').textContent=CMP.length?'('+CMP.length+')':'';
+}
+function kv(a){return '<dl class="kv">'+a.filter(function(x){return x[1]!==undefined&&x[1]!==''}).map(function(x){return '<dt>'+x[0]+'</dt><dd>'+esc(x[1])+'</dd>'}).join('')+'</dl>'}
+function closeD(){$('#drawer').hidden=true;$('#scrim').hidden=true}
+function openD(i){
+  var x=U[i],d=$('#drawer'),h='<button class="btn" type="button" id="dclose" style="float:right">Fermer</button><h2>'+esc(x.n)+'</h2><div class="src">'+esc(x.maker)+' · '+esc(CAT2[x.cat])+'</div>';
+  h+='<div class="tg">'+Object.keys(x.tg).filter(function(k){return TAGL[k]}).map(function(k){return '<span>'+TAGL[k]+'</span>'}).join('')+'</div>';
+  h+='<h3>Résumé</h3>'+kv([['Puce',x.soc],['Cœur',x.cpu],['RAM',x.ram],['Stockage',x.stor],['Radio / réseau',x.radio],['E/S',x.io],['GPIO utilisables',x.gpio==null?'':String(x.gpio)],['Tension des broches',VOLTT[x.volt]||x.volt],['USB',x.usb],['Format',FORMT[x.form]||x.form],['Logiciel',x.soft]]);
+  if(x.note)h+='<h3>À savoir</h3><p>'+esc(x.note)+'</p>';
+  if(x.chip){var c=BYID[x.chip];
+    h+='<h3>Puce '+esc(c.n)+' (détails)</h3>'+kv([['Série',c.fam],['Statut',c.stT],['Processeur',c.cpu+' · '+c.mhz],['SRAM',c.sramT],['ROM',c.rom],['Flash',c.flash],['PSRAM',c.psram],['GPIO',c.gpioT],['Wi-Fi',c.wifiT+' · '+c.bands],['Bluetooth',c.ble],['802.15.4',c.zT],['USB',c.usb],['ADC',c.adc],['DAC',c.dac],['Tactile',c.touch],['UART / SPI / I²C / I²S',c.uart+' / '+c.spi+' / '+c.i2c+' / '+c.i2s],['Sécurité',c.sec],['Température',c.temp],['Boîtier',c.pkg]])+'<p>'+esc(c.use)+'</p><button class="btn" type="button" id="dchip">Voir dans le tableau des puces</button> <button class="btn" type="button" id="dvars">Modules et variantes</button>';
+  }
+  h+='<h3>Comparer</h3><button class="btn" type="button" id="dcmp">'+(CMP.indexOf(i)>-1?'Retirer de la comparaison':'Ajouter à la comparaison')+'</button>';
+  d.innerHTML=h;d.hidden=false;$('#scrim').hidden=false;
+  $('#dclose').onclick=function(){closeD()};
+  $('#dcmp').onclick=function(){toggle(i);openD(i)};
+  if(x.chip){$('#dchip').onclick=function(){closeD();gotoChip(x.chip)};$('#dvars').onclick=function(){closeD();gotoVars(x.chip)}}
+}
+function toggle(i){var k=CMP.indexOf(i);if(k>-1)CMP.splice(k,1);else{if(CMP.length>=5)CMP.shift();CMP.push(i)}renderU();renderCmp()}
+function renderCmp(){
+  $('#cmpn').textContent=CMP.length?'('+CMP.length+')':'';
+  $('#cmpcount').textContent=CMP.length?CMP.length+' carte'+(CMP.length>1?'s':'')+' comparée'+(CMP.length>1?'s':'')+' (5 maximum). Lignes colorées : valeurs différentes.':'Aucune carte sélectionnée. Cochez-en dans l\'Explorer (5 maximum).';
+  if(!CMP.length){$('#cmptbl').innerHTML='';return}
+  var rowsDef=[['Fabricant',function(x){return x.maker}],['Famille',function(x){return CAT2[x.cat]}],['Puce',function(x){return x.soc}],['Cœur / fréquence',function(x){return x.cpu}],['RAM',function(x){return x.ram}],['Stockage',function(x){return x.stor}],['Radio / réseau',function(x){return x.radio}],['E/S',function(x){return x.io}],['GPIO utilisables',function(x){return x.gpio==null?'—':String(x.gpio)}],['Tension des broches',function(x){return VOLTT[x.volt]||x.volt}],['USB',function(x){return x.usb}],['Format',function(x){return FORMT[x.form]||x.form}],['Logiciel',function(x){return x.soft}],['Atouts',function(x){return Object.keys(x.tg).filter(function(k){return TAGL[k]&&k!=='arduino'&&k!=='mpy'}).map(function(k){return TAGL[k]}).join(', ')}],['Remarque',function(x){return x.note}]];
+  var h='<thead><tr><th></th>'+CMP.map(function(i){return '<th style="white-space:normal;min-width:190px">'+esc(U[i].n)+' <button class="btn" type="button" data-rm="'+i+'" style="padding:1px 7px">×</button></th>'}).join('')+'</tr></thead><tbody>';
+  rowsDef.forEach(function(r){
+    var vals=CMP.map(function(i){return r[1](U[i])}),diff=vals.some(function(v){return v!==vals[0]});
+    h+='<tr class="'+(diff&&CMP.length>1?'diff':'')+'"><th class="rowh">'+r[0]+'</th>'+vals.map(function(v){return '<td style="white-space:normal">'+esc(v)+'</td>'}).join('')+'</tr>';
+  });
+  $('#cmptbl').innerHTML=h+'</tbody>';
+  $$('#cmptbl button[data-rm]').forEach(function(b){b.addEventListener('click',function(){toggle(+b.getAttribute('data-rm'))})});
+}
+$('#uform').addEventListener('input',renderU);$('#uform').addEventListener('change',renderU);
+$('#u-sort').addEventListener('change',renderU);
+$('#u-reset').addEventListener('click',function(){$('#uform').reset();$('#u-noacc').checked=true;renderU()});
+$('#u-cmpbtn').addEventListener('click',function(){renderCmp();showTab('cmp')});
+$('#u-cmpclr').addEventListener('click',function(){CMP=[];renderU();renderCmp()});
+$('#cmp-clr').addEventListener('click',function(){CMP=[];renderU();renderCmp()});
+$('#cmp-back').addEventListener('click',function(){showTab('u')});
+$('#utbl').addEventListener('click',function(e){
+  var o=e.target.getAttribute&&e.target.getAttribute('data-o'),i=e.target.getAttribute&&e.target.getAttribute('data-i');
+  if(o!==null&&o!==undefined&&e.target.tagName==='BUTTON')openD(+o);
+  else if(i!==null&&i!==undefined&&e.target.tagName==='INPUT')toggle(+i);
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeD()});
+$('#scrim').addEventListener('click',closeD);
+$('#u-ftoggle').addEventListener('click',function(){var f=$('#uform'),o=f.classList.toggle('open');this.setAttribute('aria-expanded',o);this.textContent=o?'Masquer les filtres':'Filtres'});
+$('#stat').textContent=U.length+' cartes · '+CHIPS.length+' puces ESP · '+CHIPS2.length+' autres puces';
+window.exploreQ=function(q){$('#uform').reset();$('#u-noacc').checked=true;$('#u-q').value=q;renderU();showTab('u')};
+renderU();renderCmp();
+
+/* ---------- aide au choix (assistant par questions) ---------- */
+var WIZ=[
+ {q:'Quel type de carte cherchez-vous ?',h:'Vous pourrez toujours affiner ensuite dans l\'Explorer.',opts:[
+   ['Mini-ordinateur Linux (navigateur, Docker, caméra, multitâche)',{type:'linux'}],
+   ['Micro-contrôleur classique (temps réel, très basse conso)',{type:'mcu'}],
+   ['IA / vision embarquée',{type:'ai'}],
+   ['FPGA / logique programmable',{type:'fpga'}]
+ ]},
+ {q:'Quelle radio vous faut-il ?',h:'Cliquez une ou plusieurs options, ou passez si vous ne savez pas encore.',multi:1,opts:[
+   ['Wi-Fi',{tag:'wifi'}],['Bluetooth LE',{tag:'ble'}],['LoRa / longue portée, basse conso',{tag:'lora'}],
+   ['Thread / Zigbee / Matter (domotique)',{tag:'thread'}],['Cellulaire (4G / LTE-M)',{tag:'cell'}],['Ethernet filaire',{tag:'eth'}]
+ ]},
+ {q:'Quel encombrement ?',opts:[
+   ['Très petit (XIAO, D1 mini, SuperMini…)',{form:'mini'}],
+   ['Standard (DevKit, Feather, Uno…)',{form:'std'}],
+   ['Mini-PC format carte de crédit',{form:'sbc'}]
+ ]},
+ {q:'Un langage ou un outil en tête ?',multi:1,opts:[
+   ['Arduino IDE',{tag:'arduino'}],['MicroPython',{tag:'mpy'}],['CircuitPython',{tag:'cpy'}]
+ ]}
+];
+var WS={step:0,type:'',form:'',tags:[]};
+function wizMatch(x){
+  if(WS.type&&!x.tg[WS.type])return false;
+  if(WS.form&&x.form!==WS.form)return false;
+  for(var i=0;i<WS.tags.length;i++)if(!x.tg[WS.tags[i]])return false;
+  return true;
+}
+function wizCount(){return U.filter(wizMatch).length}
+function wizPicked(opt){
+  var v=opt[1];
+  if(v.type!=null)return WS.type===v.type;
+  if(v.form!=null)return WS.form===v.form;
+  if(v.tag!=null)return WS.tags.indexOf(v.tag)>-1;
+  return false;
+}
+function wizToggle(opt,multi){
+  var v=opt[1];
+  if(v.tag!=null){var i=WS.tags.indexOf(v.tag);if(i>-1)WS.tags.splice(i,1);else WS.tags.push(v.tag);renderWiz();return}
+  if(v.type!=null){WS.type=(WS.type===v.type)?'':v.type;if(!multi)setTimeout(wizNext,150);else renderWiz();return}
+  if(v.form!=null){WS.form=(WS.form===v.form)?'':v.form;if(!multi)setTimeout(wizNext,150);else renderWiz();return}
+}
+function wizNext(){WS.step=Math.min(WIZ.length,WS.step+1);renderWiz()}
+function wizPrev(){WS.step=Math.max(0,WS.step-1);renderWiz()}
+function wizRestart(){WS={step:0,type:'',form:'',tags:[]};renderWiz()}
+function wizApply(){
+  document.getElementById('uform').reset();
+  $('#u-noacc').checked=true;
+  if(WS.type)$('#u-type').value=WS.type;
+  if(WS.form)$('#u-form').value=WS.form;
+  WS.tags.forEach(function(t){var b=document.querySelector('#uform input[data-t="'+t+'"]');if(b)b.checked=true});
+  renderU();showTab('u');
+}
+function renderWiz(){
+  var box=$('#wizbox'),n=wizCount();
+  if(WS.step>=WIZ.length){
+    box.innerHTML='';
+    var h2=el('h2','',n===0?'Aucune carte ne correspond à vos réponses':'C'+(n>1?'es ':'ette ')+n+' carte'+(n>1?'s':'')+' correspond'+(n>1?'ent':'')+' à vos réponses');
+    box.appendChild(h2);
+    box.appendChild(el('p','sub',n===0?'Essayez de retirer un critère : les plus restrictifs sont souvent la radio, le format ou le type.':'Vous pourrez encore affiner (GPIO, RAM, fabricant…) dans l\'Explorer.'));
+    var row=el('div','wiz-nav');
+    var b1=el('button','btn','Voir les résultats');b1.type='button';b1.addEventListener('click',wizApply);
+    var b2=el('button','btn','Recommencer');b2.type='button';b2.addEventListener('click',wizRestart);
+    row.appendChild(b1);row.appendChild(b2);box.appendChild(row);
+    return;
+  }
+  var step=WIZ[WS.step];
+  box.innerHTML='';
+  box.appendChild(el('div','sub','Étape '+(WS.step+1)+' / '+WIZ.length));
+  box.appendChild(el('h2','',step.q));
+  if(step.h)box.appendChild(el('p','sub',step.h));
+  var opts=el('div','wiz-opts');
+  step.opts.forEach(function(opt){
+    var b=el('button','chipbtn wiz-opt',esc(opt[0]));b.type='button';
+    b.setAttribute('aria-pressed',wizPicked(opt));
+    b.addEventListener('click',function(){wizToggle(opt,step.multi)});
+    opts.appendChild(b);
+  });
+  box.appendChild(opts);
+  var row=el('div','wiz-nav');
+  if(WS.step>0){var bp=el('button','btn','← Précédent');bp.type='button';bp.addEventListener('click',wizPrev);row.appendChild(bp)}
+  var bn=el('button','btn','Suivant →');bn.type='button';bn.addEventListener('click',wizNext);row.appendChild(bn);
+  var bs=el('button','btn','Voir directement les '+n+' résultat'+(n>1?'s':'')+' →');bs.type='button';bs.style.marginLeft='auto';bs.addEventListener('click',wizApply);row.appendChild(bs);
+  box.appendChild(row);
+}
+renderWiz();
+/* autres puces */
+var c2=$('#c2-type');
+var types={};CHIPS2.forEach(function(r){types[r[2]]=1});
+c2.innerHTML='<option value="">Tous les types</option>'+Object.keys(types).map(function(k){return '<option>'+esc(k)+'</option>'}).join('');
+function renderC2(){
+  var q=$('#c2-q').value.trim().toLowerCase(),t=c2.value;
+  var rows=CHIPS2.filter(function(r){return(!t||r[2]===t)&&(!q||r.join(' ').toLowerCase().indexOf(q)>-1)});
+  $('#c2count').textContent=rows.length+' puce'+(rows.length>1?'s':'')+' sur '+CHIPS2.length;
+  var h='<thead><tr><th>Puce</th><th>Fabricant</th><th>Type</th><th>Cœur</th><th>Fréquence</th><th>RAM</th><th>Flash / stockage</th><th>Radio</th><th>E/S</th><th>USB / interfaces</th><th>Tension E/S</th><th>Remarque</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr>'+r.map(function(v,i){return i===0?'<td>'+esc(v)+'</td>':i===11?'<td class="note">'+esc(v)+'</td>':'<td style="white-space:normal;min-width:90px">'+esc(v)+'</td>'}).join('')+'</tr>'});
+  $('#c2tbl').innerHTML=h+'</tbody>';
+}
+c2.addEventListener('change',renderC2);$('#c2-q').addEventListener('input',renderC2);renderC2();
+})();
+
+
+/* ---------- init ---------- */
+fillChipSelect($('#v-chip'));
+buildTree();renderPick();renderTable();renderVars();
+var hh=(location.hash||'').replace('#','');if(TABS.indexOf(hh)>-1&&hh!=='wiz')showTab(hh);
+</script>
+
+</body></html>
