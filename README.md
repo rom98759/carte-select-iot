@@ -1,5 +1,10 @@
 # Quelle carte choisir ?
 
+![carte-select-iot — aperçu](docs/screenshot.jpg)
+
+> _Capture de l'outil en ligne — [version live](https://rom98759.github.io/carte-select-iot/)._
+
+
 Un outil pour aider à choisir une carte de développement IoT/embarqué (ESP32, Arduino, Raspberry Pi Pico, STM32, SBC Linux, FPGA, IA embarquée, LoRa…) parmi plus de 240 cartes et 90 puces.
 
 **[Ouvrir l'outil](https://rom98759.github.io/carte-select-iot/)**
